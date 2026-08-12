@@ -22,6 +22,8 @@ Institutional web terminal that reads **EUR/USD** through the full **Inner Circl
 
 **https://becomingaman2000-ship-it.github.io/EURO-USD/**
 
+Entry alerts go to **becomingaman2000@gmail.com** when the desk flips to ENTER (BUY or SELL) with entry, stop, TP1 and TP2. The first alert sends a FormSubmit confirmation — open that mail once. After that, live entries arrive automatically. Cooldown is 40 minutes per setup so the inbox is not flooded.
+
 ## Run locally
 
 ```bash
