@@ -22,9 +22,7 @@ Institutional web terminal that reads **EUR/USD** through the full **Inner Circl
 
 Public desk (served from this branch):
 
-**https://raw.githack.com/becomingaman2000-ship-it/EURO-USD/arena/019ff777-euro-usd/public/index.html**
-
-Mirror: **https://cdn.jsdelivr.net/gh/becomingaman2000-ship-it/EURO-USD@arena/019ff777-euro-usd/public/index.html**
+**https://cdn.jsdelivr.net/gh/becomingaman2000-ship-it/EURO-USD@061c8bc/public/index.html**
 
 ### GitHub Pages (custom `*.github.io` URL)
 
