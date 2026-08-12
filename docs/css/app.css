@@ -511,6 +511,8 @@ main { padding: 22px 28px 80px; display: flex; flex-direction: column; gap: 36px
 
 @media (max-width: 1100px) {
   .mast { grid-template-columns: 1fr 1fr; }
+  .ex-head { flex-direction: column; }
+  .ex-action { flex: 1; }
   .workspace, .split, .read, .pred, .meth-grid { grid-template-columns: 1fr; }
   .clockbox { text-align: left; }
 }
