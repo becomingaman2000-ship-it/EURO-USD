@@ -34,7 +34,7 @@
     </div>
 
     <div class="pair">
-      <span class="kicker">Major · Spot FX</span>
+      <span class="kicker">Major · Spot FX <b id="livePill" class="live" data-on="0">STANDBY</b></span>
       <h1>EUR / USD</h1>
     </div>
 
@@ -81,7 +81,9 @@
             <button data-ov="setup">Setup</button>
           </div>
           <button id="rescan" class="ghost">Rescan IPDA</button>
+          <span id="feedStatus" class="feed-status" data-state="seek">Connecting tape…</span>
         </div>
+        <div id="feedLine" class="feed-line">seeking live EUR/USD…</div>
         <div class="stage">
           <canvas id="tape"></canvas>
           <canvas id="tapeOv"></canvas>

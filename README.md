@@ -15,7 +15,8 @@ Institutional web terminal that reads **EUR/USD** through the full **Inner Circl
   - SMT versus GBP
   - ICT 2022 model, HTF discount OTE, Unicorn
 - Renders a dark interbank-style desk: interactive ICT chart, confluence gauge, predictions, setups with entry / stop / targets, and a written read.
-- Tries public FX APIs from the browser (Frankfurter, Binance EURUSDT, open.er-api) and rebases the last print when a live quote arrives.
+- **Realtime tape:** the browser pulls a live EUR/USD order book (Kraken spot FX first, Binance EURUSDT fallback), then streams ticks over WebSocket (2.5s REST poll if the socket drops). The last candle updates on every tick; ICT rescans on a new bar or every 20s.
+- If every venue is blocked, the desk keeps a dated composite tape and keeps retrying.
 
 ## Run
 

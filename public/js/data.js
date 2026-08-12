@@ -420,6 +420,34 @@ export function applyLiveSpot(spot) {
   return m;
 }
 
+export function hydrateFromLive(book) {
+  if (!book?.frames?.M15?.length) return getMarket();
+  const base = getMarket();
+  CACHE = {
+    meta: {
+      ...base.meta,
+      ...book.meta,
+      yearHigh: base.meta.yearHigh,
+      yearLow: base.meta.yearLow,
+      yearAvg: base.meta.yearAvg,
+      sma50: base.meta.sma50,
+      sma100: base.meta.sma100,
+      sma200: base.meta.sma200,
+      live: true,
+    },
+    frames: {
+      M15: book.frames.M15,
+      H1: book.frames.H1,
+      H4: book.frames.H4,
+      D1: book.frames.D1,
+      W1: book.frames.W1,
+    },
+    gbpDaily: book.gbpDaily?.length ? book.gbpDaily : base.gbpDaily,
+    source: book.source,
+  };
+  return CACHE;
+}
+
 export async function fetchLiveSpot() {
   const controllers = [];
   const tryFetch = async (url, parse) => {

@@ -1,6 +1,7 @@
-import { getMarket, applyLiveSpot, fetchLiveSpot, MARKET_META } from "./data.js";
+import { getMarket, hydrateFromLive, MARKET_META } from "./data.js";
 import { analyze, killZones } from "./ict.js";
 import { DeskChart } from "./chart.js";
+import { loadLiveBook, startStream } from "./live.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -11,6 +12,7 @@ const state = {
   analysis: null,
   chart: null,
   live: false,
+  stopStream: null,
 };
 
 function fmt(n, d = 5) {
@@ -23,6 +25,20 @@ function clsBias(v) {
   if (v === "BULLISH" || v === "UP" || v === "LONG") return "up";
   if (v === "BEARISH" || v === "DOWN" || v === "SHORT") return "down";
   return "flat";
+}
+
+function feedLabel(meta) {
+  if (meta?.streaming) return `LIVE · ${meta.source || "STREAM"}`;
+  if (meta?.live && meta?.feed === "poll") return `LIVE POLL · ${meta.source || "REST"}`;
+  if (meta?.live) return `LIVE BOOK · ${meta.source || "TAPE"}`;
+  return "COMPOSITE TAPE · SEEKING LIVE FEED";
+}
+
+function setFeedStatus(stateName, detail) {
+  const el = $("#feedStatus");
+  if (!el) return;
+  el.dataset.state = stateName;
+  el.textContent = detail || stateName;
 }
 
 function renderClock() {
@@ -55,11 +71,24 @@ function renderTape(a) {
   $("#spot").textContent = fmt(a.price);
   $("#spotChg").textContent = `${chg >= 0 ? "+" : ""}${fmt(chg)}  (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
   $("#spotChg").className = "chg " + (chg >= 0 ? "up" : "down");
-  $("#asOf").textContent = a.meta.live ? "LIVE FEED" : "IPDA COMPOSITE · 12 AUG 2026";
+  $("#asOf").textContent = feedLabel(a.meta);
   $("#biasHtf").textContent = a.bias.htf;
   $("#biasHtf").className = "seal " + clsBias(a.bias.htf);
   $("#biasLtf").textContent = a.bias.shortTerm;
   $("#biasLtf").className = "seal " + clsBias(a.bias.shortTerm);
+
+  const live = $("#livePill");
+  if (live) {
+    live.dataset.on = a.meta.live ? "1" : "0";
+    live.dataset.stream = a.meta.streaming ? "1" : "0";
+    live.textContent = a.meta.streaming ? "STREAMING" : a.meta.live ? "LIVE BOOK" : "STANDBY";
+  }
+  const feed = $("#feedLine");
+  if (feed) {
+    const age = a.meta.liveAt ? Math.max(0, Math.round((Date.now() - a.meta.liveAt) / 1000)) : "—";
+    const ba = a.meta.bid && a.meta.ask ? `  ·  ${fmt(a.meta.bid)} / ${fmt(a.meta.ask)}` : "";
+    feed.textContent = `${a.meta.source || "composite"}${ba}  ·  ${age === "—" ? "no tick yet" : age + "s ago"}`;
+  }
 
   const g = $("#gaugeFill");
   if (g) {
@@ -239,19 +268,24 @@ function clamp(v, a, b) {
   return Math.max(a, Math.min(b, v));
 }
 
-function refresh(market) {
+function refresh(market, opts = {}) {
   state.market = market;
   state.analysis = analyze(market);
   const a = state.analysis;
   renderTape(a);
-  renderMTF(a);
-  renderPred(a);
-  renderSetups(a);
-  renderPD(a);
-  renderStory(a);
-  renderLevels(a);
+  if (!opts.tickOnly) {
+    renderMTF(a);
+    renderPred(a);
+    renderSetups(a);
+    renderPD(a);
+    renderStory(a);
+    renderLevels(a);
+  }
   const bars = market.frames[state.tf];
-  state.chart.setData(bars, a, state.tf);
+  state.chart.setData(bars, a, state.tf, {
+    preserve: opts.preserve,
+    soft: opts.soft,
+  });
 }
 
 function setTF(tf) {
@@ -260,6 +294,31 @@ function setTF(tf) {
   if (state.market) {
     state.chart.setData(state.market.frames[tf], state.analysis, tf);
   }
+}
+
+async function attachLive() {
+  setFeedStatus("seek", "Requesting live EUR/USD book…");
+  const book = await loadLiveBook();
+  if (!book) {
+    setFeedStatus("offline", "Live venues blocked — composite tape");
+    window.setTimeout(attachLive, 20000);
+    return;
+  }
+  state.live = true;
+  if (state.stopStream) state.stopStream();
+  const m = hydrateFromLive(book);
+  refresh(m);
+  setFeedStatus("book", `${book.source.label} book loaded`);
+  let lastScan = Date.now();
+  state.stopStream = startStream(m, {
+    onTick: ({ opened }) => {
+      const now = Date.now();
+      const heavy = opened || now - lastScan > 20000;
+      if (heavy) lastScan = now;
+      refresh(m, { preserve: true, soft: true, tickOnly: !heavy });
+    },
+    onStatus: (s) => setFeedStatus(s.state, s.detail),
+  });
 }
 
 function boot() {
@@ -279,25 +338,16 @@ function boot() {
     })
   );
 
-  $("#rescan").addEventListener("click", () => {
+  $("#rescan").addEventListener("click", async () => {
     $("#rescan").classList.add("spin");
-    refresh(state.market);
+    await attachLive();
     setTimeout(() => $("#rescan").classList.remove("spin"), 700);
   });
 
   window.addEventListener("resize", () => state.chart.resize());
   renderClock();
   setInterval(renderClock, 1000);
-
-  fetchLiveSpot().then((px) => {
-    if (!px) return;
-    state.live = true;
-    refresh(applyLiveSpot(px));
-  });
-  setInterval(async () => {
-    const px = await fetchLiveSpot();
-    if (px) refresh(applyLiveSpot(px));
-  }, 30000);
+  attachLive();
 
   window.addEventListener("keydown", (e) => {
     const map = { 1: "M15", 2: "H1", 3: "H4", 4: "D1", 5: "W1" };

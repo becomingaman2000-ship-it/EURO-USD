@@ -64,14 +64,24 @@ export class DeskChart {
     });
   }
 
-  setData(bars, analysis, tf) {
+  setData(bars, analysis, tf, opts = {}) {
+    const pinned = this.view.end >= this.bars.length - 1;
+    const prevCount = this.view.count;
     this.bars = bars;
     this.analysis = analysis;
-    this.tf = tf;
-    this.view.end = bars.length;
-    this.view.count = tf === "M15" ? 96 : tf === "H1" ? 90 : tf === "H4" ? 80 : tf === "D1" ? 120 : 64;
-    this.view.count = Math.min(this.view.count, bars.length);
-    this.resize();
+    const tfChanged = tf && tf !== this.tf;
+    this.tf = tf || this.tf;
+    if (!opts.preserve || tfChanged || !prevCount) {
+      this.view.end = bars.length;
+      this.view.count = this.tf === "M15" ? 96 : this.tf === "H1" ? 90 : this.tf === "H4" ? 80 : this.tf === "D1" ? 120 : 64;
+      this.view.count = Math.min(this.view.count, bars.length);
+      if (!opts.soft) this.resize();
+      else this.draw();
+      return;
+    }
+    this.view.count = Math.min(prevCount, bars.length);
+    this.view.end = pinned ? bars.length : Math.min(this.view.end, bars.length);
+    this.draw();
   }
 
   resize() {

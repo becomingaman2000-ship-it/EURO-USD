@@ -78,7 +78,26 @@ ul, ol { list-style: none; }
   letter-spacing: 0.04em;
 }
 .brand em { display: block; font-style: normal; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mute); }
-.pair .kicker { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--mute); }
+.pair .kicker { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--mute); display: flex; align-items: center; gap: 10px; }
+.live {
+  letter-spacing: 0.16em;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  color: var(--mute);
+  font-weight: 500;
+}
+.live[data-on="1"] {
+  color: #0c1a14;
+  background: var(--up);
+  border-color: var(--up);
+}
+.live[data-stream="1"] {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(111,191,154,0.55); }
+  50% { box-shadow: 0 0 0 6px rgba(111,191,154,0); }
+}
 .pair h1 {
   font-family: "Cormorant Garamond", serif;
   font-size: 34px;
@@ -172,6 +191,22 @@ main { padding: 22px 28px 80px; display: flex; flex-direction: column; gap: 36px
 .ovs button.off { opacity: 0.45; }
 .ghost { margin-left: auto; border-color: var(--line); }
 .ghost.spin { color: var(--gold); }
+.feed-status {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.feed-status[data-state="live"] { color: var(--up); }
+.feed-status[data-state="book"] { color: var(--gold-2); }
+.feed-status[data-state="offline"] { color: var(--down); }
+.feed-line {
+  padding: 6px 14px 0;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--mute);
+}
 .stage { position: relative; flex: 1; min-height: 500px; }
 .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 #tapeOv { cursor: crosshair; }
