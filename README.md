@@ -20,22 +20,7 @@ Institutional web terminal that reads **EUR/USD** through the full **Inner Circl
 
 ## Live site
 
-Public desk (served from this branch):
-
-**https://cdn.jsdelivr.net/gh/becomingaman2000-ship-it/EURO-USD@061c8bc/public/index.html**
-
-### GitHub Pages (custom `*.github.io` URL)
-
-In the repo: **Settings → Pages → Build and deployment**
-
-1. Source: **Deploy from a branch**
-2. Branch: `arena/019ff777-euro-usd`
-3. Folder: **/docs**
-4. Save
-
-Site will be: `https://becomingaman2000-ship-it.github.io/EURO-USD/`
-
-Or click [Deploy to Netlify](https://app.netlify.com/start/deploy?repository=https://github.com/becomingaman2000-ship-it/EURO-USD) (publish directory is `public`).
+**https://becomingaman2000-ship-it.github.io/EURO-USD/**
 
 ## Run locally
 
