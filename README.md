@@ -18,7 +18,28 @@ Institutional web terminal that reads **EUR/USD** through the full **Inner Circl
 - **Realtime tape:** the browser pulls a live EUR/USD order book (Kraken spot FX first, Binance EURUSDT fallback), then streams ticks over WebSocket (2.5s REST poll if the socket drops). The last candle updates on every tick; ICT rescans on a new bar or every 20s.
 - If every venue is blocked, the desk keeps a dated composite tape and keeps retrying.
 
-## Run
+## Live site
+
+Public desk (served from this branch):
+
+**https://raw.githack.com/becomingaman2000-ship-it/EURO-USD/arena/019ff777-euro-usd/public/index.html**
+
+Mirror: **https://cdn.jsdelivr.net/gh/becomingaman2000-ship-it/EURO-USD@arena/019ff777-euro-usd/public/index.html**
+
+### GitHub Pages (custom `*.github.io` URL)
+
+In the repo: **Settings → Pages → Build and deployment**
+
+1. Source: **Deploy from a branch**
+2. Branch: `arena/019ff777-euro-usd`
+3. Folder: **/docs**
+4. Save
+
+Site will be: `https://becomingaman2000-ship-it.github.io/EURO-USD/`
+
+Or click [Deploy to Netlify](https://app.netlify.com/start/deploy?repository=https://github.com/becomingaman2000-ship-it/EURO-USD) (publish directory is `public`).
+
+## Run locally
 
 ```bash
 node server.js
