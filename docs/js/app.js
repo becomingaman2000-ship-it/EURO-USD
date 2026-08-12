@@ -2,6 +2,7 @@ import { getMarket, hydrateFromLive, MARKET_META } from "./data.js";
 import { analyze, killZones, executionFrom } from "./ict.js";
 import { DeskChart } from "./chart.js";
 import { loadLiveBook, startStream } from "./live.js";
+import { mailEnabled, setMailEnabled, maybeNotify, sendAlert, lastMail, ALERT_EMAIL } from "./notify.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -161,6 +162,14 @@ function renderExecute(a) {
   $("#exNote").textContent = (ex.note || "").replace(/\bLONG\b/g, "BUY").replace(/\bSHORT\b/g, "SELL");
   const bar = $("#exBar");
   if (bar) bar.style.width = `${Math.max(2, ex.progress || 0)}%`;
+  maybeNotify(ex, state.market, setMailStatus);
+}
+
+function setMailStatus(stateName, detail) {
+  const el = $("#mailStatus");
+  if (!el) return;
+  el.dataset.state = stateName || "idle";
+  el.textContent = detail || "";
 }
 
 function renderPred(a) {
@@ -173,7 +182,7 @@ function renderPred(a) {
   $("#predGrid").innerHTML = cards
     .map(
       ([name, x]) => `<article class="${clsBias(x.direction)}">
-        <header><span>${name}</span><b>${x.direction}</b></header>
+        <header><span>${name}</span><b>${actionOf(x.direction)}</b></header>
         <div class="target">${fmt(x.target)}</div>
         <dl>
           <div><dt>Stretch</dt><dd>${fmt(x.stretch)}</dd></div>
@@ -359,12 +368,34 @@ async function attachLive() {
   refresh(m);
   setFeedStatus("book", `${book.source.label} book loaded`);
   let lastScan = Date.now();
+  let lastPaint = 0;
   state.stopStream = startStream(m, {
-    onTick: ({ opened }) => {
+    onTick: ({ opened, price }) => {
       const now = Date.now();
-      const heavy = opened || now - lastScan > 20000;
-      if (heavy) lastScan = now;
-      refresh(m, { preserve: true, soft: true, tickOnly: !heavy });
+      const heavy = opened || now - lastScan > 8000;
+      if (heavy) {
+        lastScan = now;
+        lastPaint = now;
+        refresh(m, { preserve: true, soft: true });
+        return;
+      }
+      if (!state.analysis || now - lastPaint < 200) return;
+      lastPaint = now;
+      state.analysis.price = price;
+      state.analysis.meta = m.meta;
+      state.analysis.execution = executionFrom(
+        state.analysis.setups,
+        price,
+        now,
+        state.analysis.po3,
+        state.analysis.bias
+      );
+      renderTape(state.analysis);
+      renderExecute(state.analysis);
+      state.chart.setData(m.frames[state.tf], state.analysis, state.tf, {
+        preserve: true,
+        soft: true,
+      });
     },
     onStatus: (s) => setFeedStatus(s.state, s.detail),
   });

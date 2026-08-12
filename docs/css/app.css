@@ -258,7 +258,23 @@ main { padding: 22px 28px 80px; display: flex; flex-direction: column; gap: 36px
 .ex-grid .tp strong { color: var(--up); }
 .ex-track { height: 4px; margin: 16px 0 10px; background: #1c1d22; }
 .ex-track i { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.3s ease; }
-#exNote { font-size: 14px; line-height: 1.55; color: #d8d2c6; }
+.mailbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; letter-spacing: 0.08em; text-transform: uppercase; }
+.switch input { accent-color: var(--gold); width: 16px; height: 16px; }
+#mailAddr { font-family: "IBM Plex Mono", monospace; color: var(--gold-2); font-style: normal; }
+.mail-status { color: var(--mute); }
+.mail-status[data-state="sent"] { color: var(--up); }
+.mail-status[data-state="sending"] { color: var(--gold); }
+.mail-status[data-state="error"] { color: var(--down); }
 .spot.flash { color: var(--gold-2); }
 
 @media (max-width: 1100px) {
