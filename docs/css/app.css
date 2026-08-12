@@ -62,12 +62,39 @@ ul, ol { list-style: none; }
 
 .mast {
   display: grid;
-  grid-template-columns: auto auto 1fr auto auto;
+  grid-template-columns: auto auto 1fr auto auto auto;
   gap: 28px;
   align-items: center;
   padding: 18px 28px 16px;
   border-bottom: 1px solid var(--line);
 }
+.action-flag {
+  min-width: 132px;
+  padding: 8px 14px 10px;
+  text-align: center;
+  border: 1px solid var(--line);
+  background: #14151a;
+}
+.action-flag span {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.action-flag strong {
+  display: block;
+  margin-top: 4px;
+  font-family: Outfit, sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+.action-flag[data-action="BUY"] { background: #143024; border-color: var(--up); }
+.action-flag[data-action="BUY"] strong { color: var(--up); }
+.action-flag[data-action="SELL"] { background: #2a1416; border-color: var(--down); }
+.action-flag[data-action="SELL"] strong { color: var(--down); }
+.action-flag[data-action="FLAT"] strong { color: var(--gold-2); }
 .brand { display: flex; gap: 12px; align-items: center; color: var(--gold-2); }
 .mark { width: 36px; height: 36px; }
 .brand strong {
@@ -164,7 +191,36 @@ main { padding: 22px 28px 80px; display: flex; flex-direction: column; gap: 36px
 .execute[data-status="TAKE_PROFIT"] { border-color: rgba(111,191,154,0.7); }
 .execute[data-status="INVALID"] { border-color: rgba(211,106,106,0.5); }
 .execute[data-status="IN_TRADE"] { border-color: rgba(196,163,90,0.45); }
-.ex-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+.ex-head { display: flex; gap: 22px; align-items: stretch; }
+.ex-action {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  text-align: center;
+}
+.ex-action span {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.ex-action b {
+  display: block;
+  margin: 6px 0 4px;
+  font-size: 52px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+.ex-action em { font-style: normal; font-size: 12px; color: #c7c1b4; }
+.ex-action[data-action="BUY"] { background: #143024; border-color: var(--up); }
+.ex-action[data-action="BUY"] b { color: var(--up); }
+.ex-action[data-action="SELL"] { background: #2a1416; border-color: var(--down); }
+.ex-action[data-action="SELL"] b { color: var(--down); }
+.ex-action[data-action="FLAT"] b { color: var(--gold-2); }
 .ex-kicker { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); }
 .execute h2 {
   font-family: "Cormorant Garamond", serif;

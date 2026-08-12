@@ -44,7 +44,10 @@
       <div id="asOf" class="asof">IPDA COMPOSITE</div>
     </div>
 
-    <div class="seals">
+    <div class="action-flag" id="actionFlag" data-action="FLAT">
+      <span>Action</span>
+      <strong id="actionWord">—</strong>
+    </div>
       <div>
         <span>HTF bias</span>
         <b id="biasHtf" class="seal">—</b>
@@ -64,14 +67,15 @@
   <main>
     <section class="execute" id="execute">
       <div class="ex-head">
+        <div class="ex-action" id="exAction" data-action="FLAT">
+          <span>Action</span>
+          <b id="exActionWord">WAIT</b>
+          <em id="exActionSub">Reading EUR/USD…</em>
+        </div>
         <div>
           <span class="ex-kicker">Live execution · updated every tick</span>
           <h2 id="exState">READING THE TAPE</h2>
           <p id="exWhen">Waiting on kill zone and entry array…</p>
-        </div>
-        <div class="ex-sidewrap">
-          <span>Call</span>
-          <b id="exSide" class="seal">—</b>
         </div>
       </div>
       <div class="ex-grid">

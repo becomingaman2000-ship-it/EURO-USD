@@ -22,9 +22,14 @@ function pips(n) {
   return (n / 0.0001).toFixed(1);
 }
 function clsBias(v) {
-  if (v === "BULLISH" || v === "UP" || v === "LONG") return "up";
-  if (v === "BEARISH" || v === "DOWN" || v === "SHORT") return "down";
+  if (v === "BULLISH" || v === "UP" || v === "LONG" || v === "BUY") return "up";
+  if (v === "BEARISH" || v === "DOWN" || v === "SHORT" || v === "SELL") return "down";
   return "flat";
+}
+function actionOf(side) {
+  if (side === "LONG" || side === "BUY" || side === "BULLISH" || side === "UP") return "BUY";
+  if (side === "SHORT" || side === "SELL" || side === "BEARISH" || side === "DOWN") return "SELL";
+  return "FLAT";
 }
 
 function feedLabel(meta) {
@@ -97,6 +102,14 @@ function renderTape(a) {
   }
   $("#confScore").textContent = a.confluence.score;
   $("#confNotes").textContent = a.confluence.notes.join(" · ") || "Mixed read";
+
+  const act = actionOf(a.execution?.side || a.bias.shortTerm);
+  const flag = $("#actionFlag");
+  const word = $("#actionWord");
+  if (flag && word) {
+    flag.dataset.action = act;
+    word.textContent = act;
+  }
 }
 
 function renderMTF(a) {
@@ -119,11 +132,20 @@ function renderExecute(a) {
   const box = $("#execute");
   const ex = a.execution;
   if (!box || !ex) return;
+  const act = actionOf(ex.side);
   box.dataset.status = ex.status;
-  $("#exState").textContent = ex.label;
+  box.dataset.action = act;
+  const stamp = $("#exAction");
+  if (stamp) {
+    stamp.dataset.action = act;
+    $("#exActionWord").textContent = act;
+    $("#exActionSub").textContent =
+      act === "BUY" ? "Buy the euro / sell the dollar" :
+      act === "SELL" ? "Sell the euro / buy the dollar" :
+      "No directional order";
+  }
+  $("#exState").textContent = ex.label.replace("LONG", "BUY").replace("SHORT", "SELL");
   $("#exWhen").textContent = ex.when;
-  $("#exSide").textContent = ex.side;
-  $("#exSide").className = "seal " + clsBias(ex.side);
   $("#exEntry").textContent = ex.entry != null ? fmt(ex.entry) : "—";
   $("#exSl").textContent = ex.sl != null ? fmt(ex.sl) : "—";
   $("#exTp1").textContent = ex.t1 != null ? fmt(ex.t1) : "—";
@@ -136,7 +158,7 @@ function renderExecute(a) {
   $("#exSlDist").textContent = ex.pipsToSl != null ? `${ex.pipsToSl} pips of room` : "—";
   $("#exTp1Dist").textContent = ex.pipsToTp != null ? `${ex.pipsToTp} pips to T1` : "—";
   $("#exTp2Dist").textContent = ex.t2 != null ? `${pips(Math.abs(ex.t2 - a.price))} pips to T2` : "—";
-  $("#exNote").textContent = ex.note;
+  $("#exNote").textContent = (ex.note || "").replace(/\bLONG\b/g, "BUY").replace(/\bSHORT\b/g, "SELL");
   const bar = $("#exBar");
   if (bar) bar.style.width = `${Math.max(2, ex.progress || 0)}%`;
 }
@@ -180,7 +202,7 @@ function renderSetups(a) {
       (s) => `<article class="${clsBias(s.side)}">
         <header>
           <span class="tag">${s.model}</span>
-          <b>${s.side}</b>
+          <b>${actionOf(s.side)}</b>
         </header>
         <h3>${s.title}</h3>
         <ul class="levels">
