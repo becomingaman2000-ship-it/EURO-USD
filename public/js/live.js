@@ -198,16 +198,19 @@ export function applyTick(market, price, ts = Date.now()) {
 }
 
 export function startStream(market, { onTick, onStatus }) {
-  let ws = null;
+  const sockets = [];
   let poll = null;
+  let beat = null;
   let dead = false;
   let lastPx = market.meta.spot;
+  let lastTickAt = 0;
   let ticks = 0;
 
   const emit = (px, ts, how) => {
     if (!validPx(px)) return;
     if (Math.abs(px - lastPx) < 0.000001 && how !== "poll") return;
     lastPx = px;
+    lastTickAt = Date.now();
     ticks += 1;
     const opened = applyTick(market, px, ts);
     market.meta.streaming = how === "ws";
@@ -217,72 +220,74 @@ export function startStream(market, { onTick, onStatus }) {
 
   const setStatus = (state, detail) => onStatus?.({ state, detail, source: market.meta.source });
 
+  const track = (ws) => {
+    sockets.push(ws);
+    return ws;
+  };
+
   const openBinance = () => {
-    const url = "wss://stream.binance.com:9443/ws/eurusdt@trade";
-    ws = new WebSocket(url);
+    const ws = track(new WebSocket("wss://stream.binance.com:9443/ws/eurusdt@trade"));
     ws.onopen = () => setStatus("live", "Binance trade stream");
     ws.onmessage = (ev) => {
       try {
         const m = JSON.parse(ev.data);
-        const px = +(m.p || m.price);
-        const ts = +(m.T || m.E || Date.now());
-        emit(px, ts, "ws");
+        emit(+(m.p || m.price), +(m.T || m.E || Date.now()), "ws");
       } catch { /* ignore */ }
     };
-    ws.onerror = () => {};
     ws.onclose = () => {
       if (dead) return;
-      setStatus("reconnect", "socket closed — polling");
-      ws = null;
-      window.setTimeout(connect, 1500);
+      window.setTimeout(openBinance, 1200);
     };
+    ws.onerror = () => {};
   };
 
   const openKraken = () => {
-    ws = new WebSocket("wss://ws.kraken.com");
+    const ws = track(new WebSocket("wss://ws.kraken.com"));
     ws.onopen = () => {
+      ws.send(JSON.stringify({
+        event: "subscribe",
+        pair: ["EUR/USD"],
+        subscription: { name: "trade" },
+      }));
       ws.send(JSON.stringify({
         event: "subscribe",
         pair: ["EUR/USD"],
         subscription: { name: "ticker" },
       }));
-      setStatus("live", "Kraken ticker stream");
+      setStatus("live", "Kraken trade + ticker stream");
     };
     ws.onmessage = (ev) => {
       try {
         const m = JSON.parse(ev.data);
-        if (!Array.isArray(m) || !m[1]?.c) return;
-        const px = +m[1].c[0];
-        emit(px, Date.now(), "ws");
+        if (!Array.isArray(m)) return;
+        if (m[2] === "trade" && Array.isArray(m[1])) {
+          const last = m[1][m[1].length - 1];
+          if (last) emit(+last[0], Math.round(+last[2] * 1000), "ws");
+          return;
+        }
+        if (m[1]?.c) {
+          if (m[1].b) market.meta.bid = +m[1].b[0];
+          if (m[1].a) market.meta.ask = +m[1].a[0];
+          emit(+m[1].c[0], Date.now(), "ws");
+        }
       } catch { /* ignore */ }
     };
-    ws.onerror = () => {};
     ws.onclose = () => {
       if (dead) return;
-      setStatus("reconnect", "socket closed — polling");
-      ws = null;
-      window.setTimeout(connect, 1500);
+      window.setTimeout(openKraken, 1200);
     };
-  };
-
-  const connect = () => {
-    if (dead) return;
-    try {
-      if (market.meta.source?.includes("Kraken")) openKraken();
-      else openBinance();
-    } catch {
-      setStatus("poll", "websocket blocked");
-    }
+    ws.onerror = () => {};
   };
 
   const pollOnce = async () => {
     try {
-      if (market.meta.source?.includes("Kraken")) {
+      const preferKraken = market.meta.source?.includes("Kraken");
+      if (preferKraken) {
         const t = await fetchKrakenTicker("EURUSD");
         if (t) {
           market.meta.bid = t.bid;
           market.meta.ask = t.ask;
-          emit(t.last, Date.now(), ws ? "ws" : "poll");
+          emit(t.last, Date.now(), lastTickAt && Date.now() - lastTickAt < 3000 ? "ws" : "poll");
           return;
         }
       }
@@ -290,20 +295,34 @@ export function startStream(market, { onTick, onStatus }) {
       if (t) {
         market.meta.bid = t.bid;
         market.meta.ask = t.ask;
-        emit(t.last, Date.now(), ws ? "ws" : "poll");
+        emit(t.last, Date.now(), lastTickAt && Date.now() - lastTickAt < 3000 ? "ws" : "poll");
       }
     } catch {
       setStatus("offline", "quote poll failed");
     }
   };
 
-  connect();
-  poll = window.setInterval(pollOnce, 2500);
+  try {
+    if (market.meta.source?.includes("Kraken")) openKraken();
+    openBinance();
+  } catch {
+    setStatus("poll", "websocket blocked — polling");
+  }
+
+  poll = window.setInterval(pollOnce, 1000);
   pollOnce();
+  beat = window.setInterval(() => {
+    if (dead) return;
+    if (Date.now() - lastTickAt > 6000) {
+      setStatus("reconnect", "stale tape — forcing poll");
+      pollOnce();
+    }
+  }, 3000);
 
   return () => {
     dead = true;
-    if (ws) try { ws.close(); } catch { /* */ }
+    for (const ws of sockets) try { ws.close(); } catch { /* */ }
     if (poll) clearInterval(poll);
+    if (beat) clearInterval(beat);
   };
 }

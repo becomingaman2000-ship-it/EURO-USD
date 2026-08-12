@@ -1,5 +1,5 @@
 import { getMarket, hydrateFromLive, MARKET_META } from "./data.js";
-import { analyze, killZones } from "./ict.js";
+import { analyze, killZones, executionFrom } from "./ict.js";
 import { DeskChart } from "./chart.js";
 import { loadLiveBook, startStream } from "./live.js";
 
@@ -113,6 +113,32 @@ function renderMTF(a) {
       </article>`;
     })
     .join("");
+}
+
+function renderExecute(a) {
+  const box = $("#execute");
+  const ex = a.execution;
+  if (!box || !ex) return;
+  box.dataset.status = ex.status;
+  $("#exState").textContent = ex.label;
+  $("#exWhen").textContent = ex.when;
+  $("#exSide").textContent = ex.side;
+  $("#exSide").className = "seal " + clsBias(ex.side);
+  $("#exEntry").textContent = ex.entry != null ? fmt(ex.entry) : "—";
+  $("#exSl").textContent = ex.sl != null ? fmt(ex.sl) : "—";
+  $("#exTp1").textContent = ex.t1 != null ? fmt(ex.t1) : "—";
+  $("#exTp2").textContent = ex.t2 != null ? fmt(ex.t2) : "—";
+  $("#exWindow").textContent = ex.when;
+  $("#exCount").textContent = ex.countdown === "now" ? "window open" : `in ${ex.countdown}`;
+  $("#exModel").textContent = ex.model || "—";
+  $("#exRr").textContent = ex.rr ? `R:R ${ex.rr}` : "—";
+  $("#exEntryDist").textContent = ex.pipsToEntry != null ? `${ex.pipsToEntry} pips from spot` : "—";
+  $("#exSlDist").textContent = ex.pipsToSl != null ? `${ex.pipsToSl} pips of room` : "—";
+  $("#exTp1Dist").textContent = ex.pipsToTp != null ? `${ex.pipsToTp} pips to T1` : "—";
+  $("#exTp2Dist").textContent = ex.t2 != null ? `${pips(Math.abs(ex.t2 - a.price))} pips to T2` : "—";
+  $("#exNote").textContent = ex.note;
+  const bar = $("#exBar");
+  if (bar) bar.style.width = `${Math.max(2, ex.progress || 0)}%`;
 }
 
 function renderPred(a) {
@@ -273,6 +299,7 @@ function refresh(market, opts = {}) {
   state.analysis = analyze(market);
   const a = state.analysis;
   renderTape(a);
+  renderExecute(a);
   if (!opts.tickOnly) {
     renderMTF(a);
     renderPred(a);

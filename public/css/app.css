@@ -154,6 +154,65 @@ ul, ol { list-style: none; }
 
 main { padding: 22px 28px 80px; display: flex; flex-direction: column; gap: 36px; }
 
+.execute {
+  padding: 22px 24px 20px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(28,24,16,0.95), rgba(12,13,17,0.95));
+  box-shadow: var(--shadow);
+}
+.execute[data-status="ENTER"] { border-color: rgba(111,191,154,0.55); }
+.execute[data-status="TAKE_PROFIT"] { border-color: rgba(111,191,154,0.7); }
+.execute[data-status="INVALID"] { border-color: rgba(211,106,106,0.5); }
+.execute[data-status="IN_TRADE"] { border-color: rgba(196,163,90,0.45); }
+.ex-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+.ex-kicker { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); }
+.execute h2 {
+  font-family: "Cormorant Garamond", serif;
+  font-size: 36px;
+  font-weight: 500;
+  margin: 6px 0 4px;
+  letter-spacing: 0.02em;
+}
+.execute[data-status="ENTER"] h2,
+.execute[data-status="TAKE_PROFIT"] h2 { color: var(--up); }
+.execute[data-status="INVALID"] h2 { color: var(--down); }
+#exWhen { color: #c7c1b4; font-size: 14px; }
+.ex-sidewrap { text-align: right; }
+.ex-sidewrap span { display: block; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); margin-bottom: 8px; }
+.ex-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin-top: 18px;
+}
+.ex-grid article {
+  padding: 12px 12px 10px;
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,0.25);
+}
+.ex-grid span { display: block; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.ex-grid strong {
+  display: block;
+  margin-top: 6px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 20px;
+  font-weight: 500;
+}
+.ex-grid em { display: block; margin-top: 4px; font-style: normal; font-size: 12px; color: var(--gold-2); }
+.ex-grid .tp strong { color: var(--up); }
+.ex-track { height: 4px; margin: 16px 0 10px; background: #1c1d22; }
+.ex-track i { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.3s ease; }
+#exNote { font-size: 14px; line-height: 1.55; color: #d8d2c6; }
+.spot.flash { color: var(--gold-2); }
+
+@media (max-width: 1100px) {
+  .ex-grid { grid-template-columns: 1fr 1fr 1fr; }
+}
+@media (max-width: 720px) {
+  .ex-grid, .ex-head { grid-template-columns: 1fr 1fr; display: grid; }
+  .execute h2 { font-size: 26px; }
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.7fr);

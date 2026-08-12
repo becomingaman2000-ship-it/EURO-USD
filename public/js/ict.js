@@ -686,6 +686,141 @@ function biasFrom(frames, po3) {
   return { htf, shortTerm, votes: { W1: w, D1: d, H4: h4, H1: h1, M15: frames.M15.struct.trend } };
 }
 
+export function executionFrom(setups, price, now, po3, bias, kz) {
+  const zones = kz || killZones(now);
+  const tradable = zones.active.filter((z) => z.id !== "ASIAN");
+  const inKill = tradable.length > 0;
+  const next = nextWindow(zones);
+  if (!setups?.length) {
+    return {
+      status: "STAND_ASIDE",
+      label: "STAND ASIDE",
+      side: "FLAT",
+      when: next.label,
+      countdown: next.countdown,
+      note: "No valid ICT model is armed. Wait for a sweep and a kill zone.",
+      entry: null,
+      sl: null,
+      t1: null,
+      t2: null,
+      pipsToEntry: null,
+      pipsToTp: null,
+      progress: 0,
+      model: "—",
+    };
+  }
+
+  const prefer = bias?.shortTerm === "BEARISH" ? "SHORT" : bias?.shortTerm === "BULLISH" ? "LONG" : null;
+  const ranked = setups
+    .map((s) => {
+      const past = s.side === "SHORT" ? s.entry - price : price - s.entry;
+      const toEntry = Math.abs(price - s.entry) / PIP;
+      const toTp = (s.side === "SHORT" ? price - s.t1 : s.t1 - price) / PIP;
+      const toSl = (s.side === "SHORT" ? s.sl - price : price - s.sl) / PIP;
+      const dead = s.side === "SHORT" ? price >= s.sl : price <= s.sl;
+      const tpHit = s.side === "SHORT" ? price <= s.t1 : price >= s.t1;
+      const inTrade = !dead && past > 1 * PIP;
+      const atEntry = !dead && !tpHit && toEntry <= 3.2;
+      return { s, past, toEntry, toTp, toSl, dead, tpHit, inTrade, atEntry };
+    })
+    .sort((a, b) => a.toEntry - b.toEntry);
+
+  const pick = ranked.find((r) => !r.dead) || ranked[0];
+  const s = pick.s;
+  let status = "WAIT";
+  let label = "WAIT";
+  let when = next.label;
+  let note = `Do not chase. Next high-quality window is ${next.label}. Limit the ${s.side.toLowerCase()} at ${pad(s.entry)}.`;
+
+  if (pick.dead) {
+    status = "INVALID";
+    label = "INVALIDATED";
+    when = "Stand aside";
+    note = `Stop ${pad(s.sl)} has been traded. The ${s.side.toLowerCase()} is dead. Wait for the next model.`;
+  } else if (pick.tpHit) {
+    status = "TAKE_PROFIT";
+    label = "TAKE PROFIT";
+    when = "Bank T1 now";
+    note = `T1 ${pad(s.t1)} is in. Close at least half. Trail the rest to T2 ${pad(s.t2)}.`;
+  } else if (pick.inTrade) {
+    status = "IN_TRADE";
+    label = "IN TRADE — HOLD";
+    when = `Target ${pad(s.t1)}`;
+    note = `${s.side} is live. First take-profit is ${pad(s.t1)} (${pick.toTp.toFixed(1)} pips). Stop stays ${pad(s.sl)}.`;
+  } else if (pick.atEntry && inKill) {
+    status = "ENTER";
+    label = `ENTER ${s.side} NOW`;
+    when = tradable[0].name;
+    note = `Kill zone is open and price is in the entry array. ${s.side} ${pad(s.entry)} · stop ${pad(s.sl)} · TP1 ${pad(s.t1)}.`;
+  } else if (pick.atEntry && !inKill) {
+    status = "ARM";
+    label = "ARMED — WAIT FOR KILL ZONE";
+    when = next.label;
+    note = `Entry ${pad(s.entry)} is printed, but time is wrong. Only take it in ${next.label}.`;
+  } else if (pick.toEntry <= 8) {
+    status = "ARM";
+    label = "APPROACHING ENTRY";
+    when = inKill ? tradable[0].name : next.label;
+    note = `${pick.toEntry.toFixed(1)} pips from the ${s.side.toLowerCase()} limit at ${pad(s.entry)}. ${inKill ? "Kill zone is live — rest the order." : "Wait for " + next.label + "."}`;
+  }
+
+  const span = Math.abs(s.t1 - s.entry) || 0.001;
+  const traveled = s.side === "SHORT" ? s.entry - price : price - s.entry;
+  const progress = clamp((traveled / span) * 100, 0, 100);
+
+  return {
+    status,
+    label,
+    side: s.side,
+    when,
+    countdown: next.countdown,
+    note,
+    entry: s.entry,
+    sl: s.sl,
+    t1: s.t1,
+    t2: s.t2,
+    pipsToEntry: +pick.toEntry.toFixed(1),
+    pipsToTp: +pick.toTp.toFixed(1),
+    pipsToSl: +pick.toSl.toFixed(1),
+    progress,
+    model: s.model,
+    title: s.title,
+    rr: s.rr,
+    window: s.window,
+  };
+}
+
+function nextWindow(kz) {
+  const order = ["LONDON", "SB_LON", "NY_AM", "SB_NY", "NY_PM", "SB_PM"];
+  const named = {
+    LONDON: "London Kill Zone (02:00 NY)",
+    SB_LON: "London Silver Bullet (03:00 NY)",
+    NY_AM: "New York AM (07:00 NY)",
+    SB_NY: "NY Silver Bullet (10:00 NY)",
+    NY_PM: "New York PM (13:30 NY)",
+    SB_PM: "NY PM Silver Bullet (14:00 NY)",
+  };
+  const t = kz.hour + kz.minute / 60;
+  const starts = { LONDON: 2, SB_LON: 3, NY_AM: 7, SB_NY: 10, NY_PM: 13.5, SB_PM: 14 };
+  let best = null;
+  let wait = 99;
+  for (const id of order) {
+    let d = starts[id] - t;
+    if (d < 0) d += 24;
+    if (d < wait) {
+      wait = d;
+      best = id;
+    }
+  }
+  const mins = Math.round(wait * 60);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const countdown = h ? `${h}h ${m}m` : `${m}m`;
+  const live = kz.active.find((z) => order.includes(z.id));
+  if (live) return { label: `${live.name} is OPEN`, countdown: "now", id: live.id };
+  return { label: named[best], countdown, id: best };
+}
+
 export function analyze(market, now = Date.now()) {
   const frames = {
     M15: framePack(market.frames.M15, 2),
@@ -736,6 +871,7 @@ export function analyze(market, now = Date.now()) {
       ? frames.H1.gaps.some((g) => g.type === "BEAR" && g.ce > d1rYear.eq * 0.98 && g.fill < 0.8)
       : frames.H1.gaps.some((g) => g.type === "BULL" && g.fill < 0.8);
 
+  const kzNow = killZones(now);
   const confluence = scoreConfluence({
     htfTrend: bias.htf,
     ltfTrend: bias.shortTerm,
@@ -744,7 +880,7 @@ export function analyze(market, now = Date.now()) {
     sweep: Boolean(po3.judas) || frames.H1.liq.pools.some((p) => p.swept && p.reclaimed),
     choch: frames.H1.struct.lastEvent?.kind === "CHOCH" || frames.M15.struct.lastEvent?.kind === "CHOCH",
     fvgInZone,
-    killActive: false,
+    killActive: kzNow.active.some((z) => z.id !== "ASIAN"),
     smtBull: smtData?.type === "BULLISH",
     smtBear: smtData?.type === "BEARISH",
     po3: po3.phase,
@@ -753,6 +889,7 @@ export function analyze(market, now = Date.now()) {
   const setups = buildSetups(ctx);
   const pred = predictions(ctx, setups);
   const story = narrative(ctx, pred, setups, confluence);
+  const execution = executionFrom(setups, price, now, po3, bias, kzNow);
 
   const pdArrays = collectPD(frames, price);
 
@@ -781,6 +918,7 @@ export function analyze(market, now = Date.now()) {
     frames,
     pdArrays,
     setups,
+    execution,
     predictions: pred,
     narrative: story,
     smt: smtData,
