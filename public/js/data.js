@@ -365,7 +365,7 @@ export function getMarket() {
   const rng = mulberry32(0x455552); // EUR
   const dailyPath = buildDailyPath(rng);
   const daily = dailyOHLC(dailyPath, rng);
-  let m15 = expandIntraday(daily.slice(-45), 15, rng);
+  let m15 = expandIntraday(daily.slice(-95), 15, rng);
   m15 = sculptToday(m15);
   const h1Recent = aggregate(m15, 60 * 60 * 1000);
   const h1Old = expandIntraday(daily.slice(-140, -45), 60, mulberry32(0x555344));
