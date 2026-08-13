@@ -172,6 +172,36 @@ function setMailStatus(stateName, detail) {
   el.textContent = detail || "";
 }
 
+function renderLimits(a) {
+  const board = $("#limitBoard");
+  if (!board) return;
+  const rows = a.limits || [];
+  board.innerHTML = rows
+    .map((c) => {
+      const act = c.action || "FLAT";
+      return `<article class="limit-card" data-action="${act}" data-live="${c.live ? "1" : "0"}">
+        <header>
+          <div>
+            <h3>${c.session}</h3>
+            <span class="clock">${c.clock}</span>
+          </div>
+          <b class="pill-fill" data-fill="${c.fill}">${c.fill}</b>
+        </header>
+        <strong class="limit-order">${c.order}</strong>
+        <dl>
+          <div><dt>Limit</dt><dd>${c.limit != null ? fmt(c.limit) : "—"}</dd></div>
+          <div><dt>Stop</dt><dd>${c.sl != null ? fmt(c.sl) : "—"}</dd></div>
+          <div><dt>TP1</dt><dd>${c.tp1 != null ? fmt(c.tp1) : "—"}</dd></div>
+          <div><dt>TP2</dt><dd>${c.tp2 != null ? fmt(c.tp2) : "—"}</dd></div>
+          <div><dt>R:R</dt><dd>${c.rr != null ? c.rr : "—"}</dd></div>
+          <div><dt>Distance</dt><dd>${c.dist != null ? c.dist + " pips" : "—"}</dd></div>
+        </dl>
+        <p class="why">${c.why}</p>
+      </article>`;
+    })
+    .join("");
+}
+
 function renderPred(a) {
   const p = a.predictions;
   const cards = [
@@ -333,6 +363,7 @@ function refresh(market, opts = {}) {
   renderExecute(a);
   if (!opts.tickOnly) {
     renderMTF(a);
+    renderLimits(a);
     renderPred(a);
     renderSetups(a);
     renderPD(a);

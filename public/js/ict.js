@@ -821,6 +821,150 @@ function nextWindow(kz) {
   return { label: named[best], countdown, id: best };
 }
 
+
+function pickGap(gaps, type, price) {
+  const open = (gaps || []).filter((g) => g.type === type && g.fill < 0.85);
+  if (!open.length) return null;
+  return open.slice().sort((a, b) => Math.abs(a.ce - price) - Math.abs(b.ce - price))[0];
+}
+
+function ticket(partial, price) {
+  const side = partial.side;
+  const action = side === "SHORT" ? "SELL" : side === "LONG" ? "BUY" : "FLAT";
+  const order = side === "SHORT" ? "SELL LIMIT" : side === "LONG" ? "BUY LIMIT" : "NO ORDER";
+  const limit = partial.limit;
+  const sl = partial.sl;
+  const tp1 = partial.tp1;
+  const tp2 = partial.tp2;
+  let fill = "REST";
+  if (partial.skip) fill = "SKIP";
+  else if (side === "SHORT" && sl != null && price >= sl) fill = "DEAD";
+  else if (side === "LONG" && sl != null && price <= sl) fill = "DEAD";
+  else if (side === "SHORT" && tp1 != null && price <= tp1) fill = "TP HIT";
+  else if (side === "LONG" && tp1 != null && price >= tp1) fill = "TP HIT";
+  else if (side === "SHORT" && limit != null && price <= limit) fill = "FILLED";
+  else if (side === "LONG" && limit != null && price >= limit) fill = "FILLED";
+  else if (partial.live) fill = "WORKING";
+  const rr =
+    limit != null && sl != null && tp1 != null
+      ? +(Math.abs(tp1 - limit) / Math.max(Math.abs(limit - sl), 0.0002)).toFixed(2)
+      : null;
+  return {
+    ...partial,
+    action,
+    order,
+    fill,
+    rr,
+    limit: limit != null ? +Number(limit).toFixed(5) : null,
+    sl: sl != null ? +Number(sl).toFixed(5) : null,
+    tp1: tp1 != null ? +Number(tp1).toFixed(5) : null,
+    tp2: tp2 != null ? +Number(tp2).toFixed(5) : null,
+    dist: limit != null ? +((Math.abs(price - limit) / PIP).toFixed(1)) : null,
+  };
+}
+
+function buildSessionLimits(ctx, setups, kz) {
+  const price = ctx.price;
+  const { sessions, po3, bias, h1, m15, d1 } = ctx;
+  const asian = sessions.asian;
+  const london = sessions.london;
+  const bearGap = pickGap([...(h1?.gaps || []), ...(m15?.gaps || [])], "BEAR", price);
+  const bullGap = pickGap([...(h1?.gaps || []), ...(m15?.gaps || [])], "BULL", price);
+  const dayRange = d1?.range;
+  const short = setups.find((s) => s.side === "SHORT");
+  const long = setups.find((s) => s.side === "LONG");
+  const daySell = short || {
+    entry: bearGap?.ce || dayRange?.oteSell?.[0] || 1.1534,
+    sl: Math.max(po3.judas?.price || price + 0.0035, 1.1563),
+    t1: 1.15,
+    t2: 1.1466,
+  };
+  const dayBuy = long || {
+    entry: bullGap?.ce || dayRange?.oteBuy?.[0] || 1.1502,
+    sl: 1.1461,
+    t1: 1.1567,
+    t2: 1.163,
+  };
+  const sessionBias = bias.shortTerm === "BEARISH" || po3.judas?.side === "BSL" ? "SHORT" : "LONG";
+  const primary = sessionBias === "SHORT" ? daySell : dayBuy;
+  const tt = (kz?.hour || 0) + (kz?.minute || 0) / 60;
+  const live = {
+    ASIAN: tt >= 20 || tt < 2,
+    LONDON: tt >= 2 && tt < 7,
+    NY_AM: tt >= 7 && tt < 12,
+    NY_PM: tt >= 12 && tt < 17,
+  };
+  const ash = asian?.high;
+  const asl = asian?.low;
+  const londonHigh = london?.high;
+  const londonLow = london?.low;
+
+  const daily = ticket({
+    id: "DAILY", session: "Daily", clock: "Sun 17:00 – Fri 17:00 NY",
+    side: sessionBias, limit: primary.entry, sl: primary.sl, tp1: primary.t1, tp2: primary.t2, live: true,
+    why: sessionBias === "SHORT"
+      ? "Day ticket: sell-limit the premium array. Invalid if NY settles above the stop."
+      : "Day ticket: buy-limit the discount array. Invalid if NY settles below the stop.",
+  }, price);
+
+  const asianCard = ticket({
+    id: "ASIAN", session: "Asian", clock: "20:00 – 02:00 NY",
+    side: "FLAT", skip: true, limit: null, sl: null, tp1: null, tp2: null, live: live.ASIAN,
+    why: ash
+      ? "Map only. Box " + asl.toFixed(5) + " – " + ash.toFixed(5) + ". Do not fill here. Use the high/low as London Judas liquidity."
+      : "Asian is for building the range. No limit during this window.",
+  }, price);
+
+  const londonLimit = sessionBias === "SHORT" ? (bearGap?.ce || ash || daySell.entry) : (bullGap?.ce || asl || dayBuy.entry);
+  const londonSl = sessionBias === "SHORT"
+    ? Math.max(ash || 0, po3.judas?.price || 0, londonHigh || 0) + 0.00025
+    : Math.min(asl || 99, londonLow || 99, dayBuy.sl) - 0.00025;
+  const londonCard = ticket({
+    id: "LONDON", session: "London", clock: "02:00 – 05:00 NY · Silver Bullet 03:00",
+    side: sessionBias, limit: londonLimit, sl: londonSl,
+    tp1: sessionBias === "SHORT" ? Math.min(asl || 1.15, 1.15) : Math.max(ash || 1.1563, 1.1563),
+    tp2: sessionBias === "SHORT" ? 1.1466 : 1.163, live: live.LONDON,
+    why: sessionBias === "SHORT"
+      ? "Sell limit at the London premium / Asian high. Let Judas run buy-side first, then rest in the FVG."
+      : "Buy limit at the London discount / Asian low after sell-side is raided.",
+  }, price);
+
+  const nyAmLimit = sessionBias === "SHORT" ? (bearGap?.ce || londonHigh || daySell.entry) : (bullGap?.ce || londonLow || dayBuy.entry);
+  const nyAmCard = ticket({
+    id: "NY_AM", session: "New York AM", clock: "07:00 – 10:00 NY · Silver Bullet 10:00",
+    side: sessionBias, limit: nyAmLimit,
+    sl: sessionBias === "SHORT"
+      ? Math.max(daySell.sl, londonHigh || 0, po3.judas?.price || 0) + 0.0001
+      : Math.min(dayBuy.sl, londonLow || 99) - 0.0001,
+    tp1: sessionBias === "SHORT" ? 1.15 : 1.1567,
+    tp2: sessionBias === "SHORT" ? 1.1466 : 1.163, live: live.NY_AM,
+    why: sessionBias === "SHORT"
+      ? "True-day sell. Rest the sell limit in the NY AM bearish FVG. Target 1.1500 SSL."
+      : "True-day buy. Rest the buy limit in the NY AM bullish FVG after a 1.1500 raid.",
+  }, price);
+
+  const delivered = sessionBias === "SHORT" ? price <= 1.1512 : price >= 1.156;
+  const nyPm = delivered
+    ? ticket({
+        id: "NY_PM", session: "New York PM", clock: "13:30 – 16:00 NY",
+        side: sessionBias === "SHORT" ? "LONG" : "SHORT",
+        limit: sessionBias === "SHORT" ? 1.1502 : 1.1563,
+        sl: sessionBias === "SHORT" ? 1.1461 : 1.1588,
+        tp1: sessionBias === "SHORT" ? 1.1534 : 1.152,
+        tp2: sessionBias === "SHORT" ? 1.1567 : 1.15, live: live.NY_PM,
+        why: "Day target is in. Afternoon is for banking or a mean-reversion limit, not a hero add.",
+      }, price)
+    : ticket({
+        id: "NY_PM", session: "New York PM", clock: "13:30 – 16:00 NY",
+        side: sessionBias, limit: primary.entry, sl: primary.sl, tp1: primary.t1, tp2: primary.t2, live: live.NY_PM,
+        why: sessionBias === "SHORT"
+          ? "If 1.1500 is still open, keep the same sell limit working into London close / NY PM."
+          : "If the discount buy has not filled, leave the buy limit on for the PM raid.",
+      }, price);
+
+  return [daily, asianCard, londonCard, nyAmCard, nyPm];
+}
+
 export function analyze(market, now = Date.now()) {
   const frames = {
     M15: framePack(market.frames.M15, 2),
@@ -890,6 +1034,7 @@ export function analyze(market, now = Date.now()) {
   const pred = predictions(ctx, setups);
   const story = narrative(ctx, pred, setups, confluence);
   const execution = executionFrom(setups, price, now, po3, bias, kzNow);
+  const limits = buildSessionLimits(ctx, setups, kzNow);
 
   const pdArrays = collectPD(frames, price);
 
@@ -919,6 +1064,7 @@ export function analyze(market, now = Date.now()) {
     pdArrays,
     setups,
     execution,
+    limits,
     predictions: pred,
     narrative: story,
     smt: smtData,

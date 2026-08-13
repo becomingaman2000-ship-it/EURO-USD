@@ -285,6 +285,60 @@ main { padding: 22px 28px 80px; display: flex; flex-direction: column; gap: 36px
   .execute h2 { font-size: 26px; }
 }
 
+.limits-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+.limits-head p:last-child { max-width: 420px; color: #c7c1b4; font-size: 14px; line-height: 1.5; }
+.limit-board {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+.limit-card {
+  padding: 14px 14px 16px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(22,23,28,0.95), rgba(12,13,17,0.95));
+}
+.limit-card[data-live="1"] { border-color: var(--gold); }
+.limit-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.limit-card h3 { font-size: 16px; font-weight: 500; }
+.limit-card .clock { display: block; margin-top: 3px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute); }
+.limit-order {
+  display: block;
+  margin: 8px 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+}
+.limit-card[data-action="BUY"] .limit-order { color: var(--up); }
+.limit-card[data-action="SELL"] .limit-order { color: var(--down); }
+.limit-card[data-action="FLAT"] .limit-order { color: var(--gold-2); }
+.limit-card dl { display: grid; gap: 6px; }
+.limit-card div { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.limit-card dt { color: var(--mute); text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; }
+.limit-card dd { font-family: "IBM Plex Mono", monospace; }
+.limit-card .why { margin-top: 10px; font-size: 12px; line-height: 1.45; color: #c7c1b4; }
+.pill-fill {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+}
+.pill-fill[data-fill="WORKING"], .pill-fill[data-fill="REST"] { color: var(--gold-2); }
+.pill-fill[data-fill="FILLED"], .pill-fill[data-fill="TP HIT"] { color: var(--up); border-color: rgba(111,191,154,0.4); }
+.pill-fill[data-fill="DEAD"], .pill-fill[data-fill="SKIP"] { color: var(--mute); }
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.7fr);
@@ -529,6 +583,7 @@ main { padding: 22px 28px 80px; display: flex; flex-direction: column; gap: 36px
   .mast { grid-template-columns: 1fr 1fr; }
   .ex-head { flex-direction: column; }
   .ex-action { flex: 1; }
+  .limit-board { grid-template-columns: 1fr 1fr; }
   .workspace, .split, .read, .pred, .meth-grid { grid-template-columns: 1fr; }
   .clockbox { text-align: left; }
 }
