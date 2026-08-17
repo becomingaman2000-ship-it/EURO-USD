@@ -1,0 +1,673 @@
+{
+  "spec": {
+    "from": "2026-05-14",
+    "to": "2026-08-14",
+    "startEquity": 10000,
+    "lots": 1,
+    "leverage": 30,
+    "spreadPips": 0.6,
+    "commissionPerLotSide": 3,
+    "pipValuePerLot": 10,
+    "swapLongPerLot": -1.8,
+    "swapShortPerLot": 0.8,
+    "stopOutPct": 0.5,
+    "contract": 100000,
+    "pipValue": 10,
+    "roundTurnCommission": 6,
+    "marginApprox": 3617,
+    "risk25pips": 250
+  },
+  "equity": 9897,
+  "profit": -103,
+  "returnPct": -1.03,
+  "maxDD": 363,
+  "maxDDPct": 3.5,
+  "winRate": 47.2,
+  "profitFactor": 0.87,
+  "trades": 36,
+  "wins": 17,
+  "losses": 19,
+  "maxWinStreak": 4,
+  "maxLoseStreak": 5,
+  "avgWinPips": 4.6,
+  "avgLossPips": -3.5,
+  "longPnl": 111,
+  "shortPnl": -214,
+  "stopped": false,
+  "bars": 6420,
+  "byMonth": {
+    "2026-05": {
+      "n": 5,
+      "wins": 3,
+      "pnl": 48.999999999981355
+    },
+    "2026-06": {
+      "n": 8,
+      "wins": 4,
+      "pnl": 121.00000000000053
+    },
+    "2026-07": {
+      "n": 15,
+      "wins": 7,
+      "pnl": -193.9999999999807
+    },
+    "2026-08": {
+      "n": 8,
+      "wins": 4,
+      "pnl": -78.99999999999963
+    }
+  },
+  "byZone": {
+    "LONDON": {
+      "n": 16,
+      "wins": 7,
+      "pnl": -287.99999999996277
+    },
+    "NY_AM": {
+      "n": 11,
+      "wins": 7,
+      "pnl": 151.99999999997317
+    },
+    "SB_NY": {
+      "n": 1,
+      "wins": 0,
+      "pnl": -4.9999999999985505
+    },
+    "NY_PM": {
+      "n": 8,
+      "wins": 4,
+      "pnl": 37.99999999998969
+    }
+  },
+  "tradeList": [
+    {
+      "t": 1778850900000,
+      "closeTime": 1778865300000,
+      "side": "SHORT",
+      "zone": "NY_AM",
+      "entry": 1.07449,
+      "exit": 1.07434,
+      "pips": 0.9,
+      "pnl": 3,
+      "reason": "TIME_EXIT",
+      "equity": 10003
+    },
+    {
+      "t": 1779362100000,
+      "closeTime": 1779363900000,
+      "side": "LONG",
+      "zone": "NY_AM",
+      "entry": 1.07956,
+      "exit": 1.07912,
+      "pips": -5,
+      "pnl": -56,
+      "reason": "SL",
+      "equity": 9947
+    },
+    {
+      "t": 1779903900000,
+      "closeTime": 1779918300000,
+      "side": "SHORT",
+      "zone": "NY_PM",
+      "entry": 1.08196,
+      "exit": 1.08229,
+      "pips": -3.9,
+      "pnl": -45,
+      "reason": "TIME_EXIT",
+      "equity": 9902
+    },
+    {
+      "t": 1779990300000,
+      "closeTime": 1780004700000,
+      "side": "LONG",
+      "zone": "NY_PM",
+      "entry": 1.08261,
+      "exit": 1.0834,
+      "pips": 7.3,
+      "pnl": 67,
+      "reason": "TIME_EXIT",
+      "equity": 9969
+    },
+    {
+      "t": 1780052400000,
+      "closeTime": 1780056000000,
+      "side": "LONG",
+      "zone": "NY_AM",
+      "entry": 1.08368,
+      "exit": 1.0846,
+      "pips": 8.6,
+      "pnl": 80,
+      "reason": "TP1",
+      "equity": 10049
+    },
+    {
+      "t": 1780640100000,
+      "closeTime": 1780654500000,
+      "side": "SHORT",
+      "zone": "LONDON",
+      "entry": 1.08337,
+      "exit": 1.08306,
+      "pips": 2.5,
+      "pnl": 19,
+      "reason": "TIME_EXIT",
+      "equity": 10068
+    },
+    {
+      "t": 1780984800000,
+      "closeTime": 1780999200000,
+      "side": "SHORT",
+      "zone": "LONDON",
+      "entry": 1.07939,
+      "exit": 1.07931,
+      "pips": 0.2,
+      "pnl": -4,
+      "reason": "TIME_EXIT",
+      "equity": 10064
+    },
+    {
+      "t": 1781009100000,
+      "closeTime": 1781023500000,
+      "side": "SHORT",
+      "zone": "NY_AM",
+      "entry": 1.07937,
+      "exit": 1.07894,
+      "pips": 3.7,
+      "pnl": 31,
+      "reason": "TIME_EXIT",
+      "equity": 10095
+    },
+    {
+      "t": 1781262900000,
+      "closeTime": 1781267400000,
+      "side": "SHORT",
+      "zone": "NY_AM",
+      "entry": 1.07574,
+      "exit": 1.07488,
+      "pips": 8,
+      "pnl": 74,
+      "reason": "TP1",
+      "equity": 10169
+    },
+    {
+      "t": 1781272800000,
+      "closeTime": 1781287200000,
+      "side": "SHORT",
+      "zone": "SB_NY",
+      "entry": 1.07538,
+      "exit": 1.07531,
+      "pips": 0.1,
+      "pnl": -5,
+      "reason": "TIME_EXIT",
+      "equity": 10164
+    },
+    {
+      "t": 1781866800000,
+      "closeTime": 1781881200000,
+      "side": "SHORT",
+      "zone": "NY_AM",
+      "entry": 1.06989,
+      "exit": 1.07006,
+      "pips": -2.3,
+      "pnl": -29,
+      "reason": "TIME_EXIT",
+      "equity": 10135
+    },
+    {
+      "t": 1782110700000,
+      "closeTime": 1782125100000,
+      "side": "SHORT",
+      "zone": "LONDON",
+      "entry": 1.06925,
+      "exit": 1.0686,
+      "pips": 5.9,
+      "pnl": 53,
+      "reason": "TIME_EXIT",
+      "equity": 10188
+    },
+    {
+      "t": 1782235800000,
+      "closeTime": 1782250200000,
+      "side": "LONG",
+      "zone": "NY_PM",
+      "entry": 1.06986,
+      "exit": 1.0698,
+      "pips": -1.2,
+      "pnl": -18,
+      "reason": "TIME_EXIT",
+      "equity": 10170
+    },
+    {
+      "t": 1782909000000,
+      "closeTime": 1782923400000,
+      "side": "LONG",
+      "zone": "NY_AM",
+      "entry": 1.07403,
+      "exit": 1.07455,
+      "pips": 4.6,
+      "pnl": 40,
+      "reason": "TIME_EXIT",
+      "equity": 10210
+    },
+    {
+      "t": 1783066500000,
+      "closeTime": 1783080900000,
+      "side": "SHORT",
+      "zone": "LONDON",
+      "entry": 1.07479,
+      "exit": 1.07419,
+      "pips": 5.4,
+      "pnl": 48,
+      "reason": "TIME_EXIT",
+      "equity": 10258
+    },
+    {
+      "t": 1783404000000,
+      "closeTime": 1783418400000,
+      "side": "LONG",
+      "zone": "LONDON",
+      "entry": 1.07798,
+      "exit": 1.07812,
+      "pips": 0.8,
+      "pnl": 2,
+      "reason": "TIME_EXIT",
+      "equity": 10260
+    },
+    {
+      "t": 1783531800000,
+      "closeTime": 1783546200000,
+      "side": "LONG",
+      "zone": "NY_PM",
+      "entry": 1.08035,
+      "exit": 1.08003,
+      "pips": -3.8,
+      "pnl": -44,
+      "reason": "TIME_EXIT",
+      "equity": 10216
+    },
+    {
+      "t": 1783665000000,
+      "closeTime": 1783666800000,
+      "side": "LONG",
+      "zone": "LONDON",
+      "entry": 1.08297,
+      "exit": 1.08249,
+      "pips": -5.4,
+      "pnl": -60,
+      "reason": "SL",
+      "equity": 10156
+    },
+    {
+      "t": 1783666800000,
+      "closeTime": 1783681200000,
+      "side": "LONG",
+      "zone": "LONDON",
+      "entry": 1.08297,
+      "exit": 1.08271,
+      "pips": -3.2,
+      "pnl": -38,
+      "reason": "TIME_EXIT",
+      "equity": 10118
+    },
+    {
+      "t": 1784013300000,
+      "closeTime": 1784027700000,
+      "side": "LONG",
+      "zone": "LONDON",
+      "entry": 1.08725,
+      "exit": 1.08741,
+      "pips": 1,
+      "pnl": 4,
+      "reason": "TIME_EXIT",
+      "equity": 10122
+    },
+    {
+      "t": 1784028600000,
+      "closeTime": 1784031300000,
+      "side": "LONG",
+      "zone": "NY_AM",
+      "entry": 1.08716,
+      "exit": 1.08808,
+      "pips": 8.6,
+      "pnl": 80,
+      "reason": "TP1",
+      "equity": 10202
+    },
+    {
+      "t": 1784139300000,
+      "closeTime": 1784153700000,
+      "side": "LONG",
+      "zone": "NY_PM",
+      "entry": 1.08797,
+      "exit": 1.08859,
+      "pips": 5.6,
+      "pnl": 50,
+      "reason": "TIME_EXIT",
+      "equity": 10252
+    },
+    {
+      "t": 1784223900000,
+      "closeTime": 1784238300000,
+      "side": "SHORT",
+      "zone": "NY_PM",
+      "entry": 1.08809,
+      "exit": 1.08795,
+      "pips": 0.8,
+      "pnl": 2,
+      "reason": "TIME_EXIT",
+      "equity": 10254
+    },
+    {
+      "t": 1784271600000,
+      "closeTime": 1784286000000,
+      "side": "SHORT",
+      "zone": "LONDON",
+      "entry": 1.08771,
+      "exit": 1.08787,
+      "pips": -2.2,
+      "pnl": -28,
+      "reason": "TIME_EXIT",
+      "equity": 10226
+    },
+    {
+      "t": 1784631600000,
+      "closeTime": 1784646000000,
+      "side": "SHORT",
+      "zone": "NY_AM",
+      "entry": 1.08573,
+      "exit": 1.08594,
+      "pips": -2.7,
+      "pnl": -33,
+      "reason": "TIME_EXIT",
+      "equity": 10193
+    },
+    {
+      "t": 1784880000000,
+      "closeTime": 1784882700000,
+      "side": "SHORT",
+      "zone": "LONDON",
+      "entry": 1.08495,
+      "exit": 1.08569,
+      "pips": -8,
+      "pnl": -86,
+      "reason": "SL",
+      "equity": 10107
+    },
+    {
+      "t": 1784882700000,
+      "closeTime": 1784894400000,
+      "side": "SHORT",
+      "zone": "LONDON",
+      "entry": 1.08495,
+      "exit": 1.08595,
+      "pips": -10.6,
+      "pnl": -112,
+      "reason": "SL",
+      "equity": 9995
+    },
+    {
+      "t": 1785477600000,
+      "closeTime": 1785492000000,
+      "side": "LONG",
+      "zone": "LONDON",
+      "entry": 1.08193,
+      "exit": 1.08186,
+      "pips": -1.3,
+      "pnl": -19,
+      "reason": "TIME_EXIT",
+      "equity": 9976
+    },
+    {
+      "t": 1785825000000,
+      "closeTime": 1785839400000,
+      "side": "LONG",
+      "zone": "LONDON",
+      "entry": 1.08781,
+      "exit": 1.08853,
+      "pips": 6.6,
+      "pnl": 60,
+      "reason": "TIME_EXIT",
+      "equity": 10036
+    },
+    {
+      "t": 1785957300000,
+      "closeTime": 1785971700000,
+      "side": "LONG",
+      "zone": "NY_PM",
+      "entry": 1.08995,
+      "exit": 1.09042,
+      "pips": 4.1,
+      "pnl": 35,
+      "reason": "TIME_EXIT",
+      "equity": 10071
+    },
+    {
+      "t": 1785996000000,
+      "closeTime": 1786001400000,
+      "side": "LONG",
+      "zone": "LONDON",
+      "entry": 1.0901,
+      "exit": 1.0895,
+      "pips": -6.6,
+      "pnl": -72,
+      "reason": "SL",
+      "equity": 9999
+    },
+    {
+      "t": 1786349700000,
+      "closeTime": 1786364100000,
+      "side": "SHORT",
+      "zone": "LONDON",
+      "entry": 1.08931,
+      "exit": 1.08974,
+      "pips": -4.9,
+      "pnl": -55,
+      "reason": "TIME_EXIT",
+      "equity": 9944
+    },
+    {
+      "t": 1786384800000,
+      "closeTime": 1786399200000,
+      "side": "SHORT",
+      "zone": "NY_PM",
+      "entry": 1.08918,
+      "exit": 1.08915,
+      "pips": -0.3,
+      "pnl": -9,
+      "reason": "TIME_EXIT",
+      "equity": 9935
+    },
+    {
+      "t": 1786446000000,
+      "closeTime": 1786460400000,
+      "side": "SHORT",
+      "zone": "NY_AM",
+      "entry": 1.08878,
+      "exit": 1.0884,
+      "pips": 3.2,
+      "pnl": 26,
+      "reason": "TIME_EXIT",
+      "equity": 9961
+    },
+    {
+      "t": 1786603500000,
+      "closeTime": 1786617900000,
+      "side": "SHORT",
+      "zone": "LONDON",
+      "entry": 1.08508,
+      "exit": 1.08496,
+      "pips": 0.6,
+      "pnl": 0,
+      "reason": "TIME_EXIT",
+      "equity": 9961
+    },
+    {
+      "t": 1786625100000,
+      "closeTime": 1786626000000,
+      "side": "SHORT",
+      "zone": "NY_AM",
+      "entry": 1.0849,
+      "exit": 1.08542,
+      "pips": -5.8,
+      "pnl": -64,
+      "reason": "SL",
+      "equity": 9897
+    }
+  ],
+  "equityCurve": [
+    {
+      "t": 1778716800000,
+      "eq": 10000
+    },
+    {
+      "t": 1778865300000,
+      "eq": 10003
+    },
+    {
+      "t": 1779363900000,
+      "eq": 9947
+    },
+    {
+      "t": 1779918300000,
+      "eq": 9902
+    },
+    {
+      "t": 1780004700000,
+      "eq": 9969
+    },
+    {
+      "t": 1780056000000,
+      "eq": 10049
+    },
+    {
+      "t": 1780654500000,
+      "eq": 10068
+    },
+    {
+      "t": 1780999200000,
+      "eq": 10064
+    },
+    {
+      "t": 1781023500000,
+      "eq": 10095
+    },
+    {
+      "t": 1781267400000,
+      "eq": 10169
+    },
+    {
+      "t": 1781287200000,
+      "eq": 10164
+    },
+    {
+      "t": 1781881200000,
+      "eq": 10135
+    },
+    {
+      "t": 1782125100000,
+      "eq": 10188
+    },
+    {
+      "t": 1782250200000,
+      "eq": 10170
+    },
+    {
+      "t": 1782923400000,
+      "eq": 10210
+    },
+    {
+      "t": 1783080900000,
+      "eq": 10258
+    },
+    {
+      "t": 1783418400000,
+      "eq": 10260
+    },
+    {
+      "t": 1783546200000,
+      "eq": 10216
+    },
+    {
+      "t": 1783666800000,
+      "eq": 10156
+    },
+    {
+      "t": 1783681200000,
+      "eq": 10118
+    },
+    {
+      "t": 1784027700000,
+      "eq": 10122
+    },
+    {
+      "t": 1784031300000,
+      "eq": 10202
+    },
+    {
+      "t": 1784153700000,
+      "eq": 10252
+    },
+    {
+      "t": 1784238300000,
+      "eq": 10254
+    },
+    {
+      "t": 1784286000000,
+      "eq": 10226
+    },
+    {
+      "t": 1784646000000,
+      "eq": 10193
+    },
+    {
+      "t": 1784882700000,
+      "eq": 10107
+    },
+    {
+      "t": 1784894400000,
+      "eq": 9995
+    },
+    {
+      "t": 1785492000000,
+      "eq": 9976
+    },
+    {
+      "t": 1785839400000,
+      "eq": 10036
+    },
+    {
+      "t": 1785971700000,
+      "eq": 10071
+    },
+    {
+      "t": 1786001400000,
+      "eq": 9999
+    },
+    {
+      "t": 1786364100000,
+      "eq": 9944
+    },
+    {
+      "t": 1786399200000,
+      "eq": 9935
+    },
+    {
+      "t": 1786460400000,
+      "eq": 9961
+    },
+    {
+      "t": 1786617900000,
+      "eq": 9961
+    },
+    {
+      "t": 1786626000000,
+      "eq": 9897
+    }
+  ],
+  "tiny": {
+    "equity": 9989.7,
+    "profit": -10.3,
+    "returnPct": -0.1,
+    "maxDDPct": 0.4,
+    "winRate": 47.2
+  }
+}

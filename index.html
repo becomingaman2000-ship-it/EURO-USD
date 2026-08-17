@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IPDA Desk — EUR/USD Institutional ICT Terminal</title>
+  <meta name="description" content="Interbank Price Delivery Algorithm terminal for EUR/USD. Full ICT reading: market structure (BOS/MSS), liquidity pools (BSL/SSL), fair value gaps (FVG/IFVG), order blocks, kill zones, and multi-horizon predictions." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div class="grain"></div>
+  <div id="boot" class="boot">
+    <div>
+      <em>IPDA</em>
+      <strong>Reading EUR/USD</strong>
+      <span>structure · liquidity · time</span>
+    </div>
+  </div>
+
+  <header class="mast">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 36 36" aria-hidden="true">
+        <rect x="1" y="1" width="34" height="34" rx="8" fill="none" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M10 26V10h6.2c3.8 0 6.1 2 6.1 5.2 0 2.1-1 3.7-2.9 4.6L24 26h-3.1l-3.3-3.7H12.6V26H10zm2.6-6.2h3.3c2.1 0 3.4-1 3.4-2.7s-1.3-2.6-3.4-2.6h-3.3v5.3z" fill="currentColor"/>
+      </svg>
+      <div>
+        <strong>IPDA Desk</strong>
+        <em>Interbank Price Delivery Algorithm · <a href="backtest.html" style="color:inherit">3-month backtest</a></em>
+      </div>
+    </div>
+
+    <div class="pair">
+      <span class="kicker">Forex Spot · Interbank <b id="livePill" class="live" data-on="0">STANDBY</b></span>
+      <h1>EUR / USD</h1>
+    </div>
+
+    <div class="last">
+      <div id="spot" class="spot">1.08650</div>
+      <div id="spotChg" class="chg down">—</div>
+      <div id="asOf" class="asof">IPDA INTERBANK COMPOSITE</div>
+    </div>
+
+    <div class="action-flag" id="actionFlag" data-action="FLAT">
+      <span>Action</span>
+      <strong id="actionWord">—</strong>
+    </div>
+
+    <div class="seals">
+      <div>
+        <span>HTF bias</span>
+        <b id="biasHtf" class="seal">—</b>
+      </div>
+      <div>
+        <span>Session bias</span>
+        <b id="biasLtf" class="seal">—</b>
+      </div>
+    </div>
+
+    <div class="clockbox">
+      <div id="nyClock" class="ny">—</div>
+      <div id="kzPill" class="kz" data-on="0">Kill zone</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="execute" id="execute">
+      <div class="ex-head">
+        <div class="ex-action" id="exAction" data-action="FLAT">
+          <span>Action</span>
+          <b id="exActionWord">WAIT</b>
+          <em id="exActionSub">Reading EUR/USD…</em>
+        </div>
+        <div>
+          <span class="ex-kicker">Live execution · updated every tick</span>
+          <h2 id="exState">READING THE TAPE</h2>
+          <p id="exWhen">Waiting on kill zone and entry array…</p>
+        </div>
+      </div>
+      <div class="ex-grid">
+        <article>
+          <span>Enter at</span>
+          <strong id="exEntry">—</strong>
+          <em id="exEntryDist">—</em>
+        </article>
+        <article>
+          <span>Stop loss</span>
+          <strong id="exSl">—</strong>
+          <em id="exSlDist">—</em>
+        </article>
+        <article class="tp">
+          <span>Take profit 1</span>
+          <strong id="exTp1">—</strong>
+          <em id="exTp1Dist">—</em>
+        </article>
+        <article class="tp">
+          <span>Take profit 2</span>
+          <strong id="exTp2">—</strong>
+          <em id="exTp2Dist">—</em>
+        </article>
+        <article>
+          <span>Next window</span>
+          <strong id="exWindow">—</strong>
+          <em id="exCount">—</em>
+        </article>
+        <article>
+          <span>Model / R:R</span>
+          <strong id="exModel">—</strong>
+          <em id="exRr">—</em>
+        </article>
+      </div>
+      <div class="ex-track"><i id="exBar"></i></div>
+      <p id="exNote">Connecting live EUR/USD interbank feed…</p>
+      <div class="mailbar">
+        <label class="switch">
+          <input type="checkbox" id="mailToggle" checked />
+          <span>Email alerts</span>
+        </label>
+        <em id="mailAddr">becomingaman2000@gmail.com</em>
+        <button type="button" id="mailTest" class="ghost">Send test</button>
+        <span id="mailStatus" class="mail-status">Alerts on — first mail needs one Gmail confirmation</span>
+      </div>
+    </section>
+
+    <section class="limits">
+      <header class="limits-head">
+        <div>
+          <p class="eyebrow">Rest these on the book</p>
+          <h2>Limit orders by session</h2>
+        </div>
+        <p>One ticket per window. Cancel if the protective stop prints. Asian is map-only.</p>
+      </header>
+      <div id="limitBoard" class="limit-board"></div>
+    </section>
+
+    <section class="workspace">
+      <div class="chart-panel">
+        <div class="toolbar">
+          <div class="tf">
+            <button data-tf="M15">M15</button>
+            <button data-tf="H1" class="on">H1</button>
+            <button data-tf="H4">H4</button>
+            <button data-tf="D1">D1</button>
+            <button data-tf="W1">W1</button>
+          </div>
+          <div class="ovs">
+            <button data-ov="fvg" class="on">FVG</button>
+            <button data-ov="ob" class="on">OB</button>
+            <button data-ov="liq" class="on">Liquidity</button>
+            <button data-ov="eq" class="on">EQ / OTE</button>
+            <button data-ov="sessions" class="on">Sessions</button>
+            <button data-ov="setup" class="on">Setup</button>
+          </div>
+          <button id="rescan" class="ghost">Rescan IPDA</button>
+          <span id="feedStatus" class="feed-status" data-state="seek">Connecting tape…</span>
+        </div>
+        <div id="feedLine" class="feed-line">seeking live EUR/USD…</div>
+        <div class="stage">
+          <canvas id="tape"></canvas>
+          <canvas id="tapeOv"></canvas>
+        </div>
+        <div id="ohlc" class="ohlc"><span>Hover candlesticks to inspect institutional tape</span></div>
+      </div>
+
+      <aside class="side">
+        <div class="gauge-card">
+          <div class="gauge">
+            <div class="dial"></div>
+            <div id="gaugeFill" class="needle"></div>
+            <div class="gnum"><b id="confScore">—</b><span>confluence</span></div>
+          </div>
+          <p id="confNotes">Scanning arrays…</p>
+        </div>
+
+        <div class="pd-card">
+          <header>
+            <span>2026 dealing range</span>
+            <b id="pdZone">DISCOUNT</b>
+          </header>
+          <div id="pdMeter" class="meter"><i></i></div>
+          <div class="meter-labs">
+            <span id="pdLow">1.03300</span>
+            <span>EQ <em id="pdEq">1.08025</em></span>
+            <span id="pdHigh">1.12750</span>
+          </div>
+          <p>Premium is institutional sell-side inventory. Discount is where the central bank buy program restocks. 1 Pip = 0.0001.</p>
+        </div>
+
+        <div class="po3-card">
+          <header>Power of Three <b id="po3Phase">—</b></header>
+          <p id="po3Text">Reading AMD cycle…</p>
+          <div id="sessGrid" class="sess"></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="band">
+      <h2>Multi-horizon IPDA prediction</h2>
+      <div id="predGrid" class="pred"></div>
+      <ol id="scenarios" class="scen"></ol>
+    </section>
+
+    <section class="split">
+      <div>
+        <h2>ICT models in force</h2>
+        <div id="setups" class="setups"></div>
+      </div>
+      <div>
+        <h2>Key liquidity &amp; arrays</h2>
+        <ul id="lvlList" class="lvls"></ul>
+        <div class="pdcols">
+          <div>
+            <h3>Fair value gaps (FVG)</h3>
+            <ul id="fvgList" class="mini"></ul>
+          </div>
+          <div>
+            <h3>Order / breaker blocks</h3>
+            <ul id="obList" class="mini"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="read">
+      <div class="prose">
+        <p class="eyebrow">Desk memorandum · 17 August 2026</p>
+        <h2 id="storyHead">Reading the tape…</h2>
+        <div id="storyBody"></div>
+        <ul id="storyBullets" class="facts"></ul>
+      </div>
+      <div class="read-side">
+        <div id="smtBox" class="smt"></div>
+        <div class="kz-card">
+          <h3>Kill zones (New York Time)</h3>
+          <ul id="kzList" class="kzlist"></ul>
+        </div>
+        <div id="mtfGrid" class="mtf"></div>
+      </div>
+    </section>
+
+    <footer class="colophon">
+      <div>
+        <strong>IPDA Desk · EUR/USD</strong>
+        <p>Institutional execution reading order flow, liquidity draws, PD arrays, and kill zones on EUR/USD. Research &amp; execution memorandum.</p>
+      </div>
+      <div style="text-align:right">
+        <span>Forex Spot · Interbank Pricing</span><br/>
+        <small style="color:var(--mute)">1 Standard Lot = 100,000 EUR · 1 Pip = $10.00</small>
+      </div>
+    </footer>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

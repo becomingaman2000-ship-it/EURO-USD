@@ -1,0 +1,10 @@
+{
+  "name": "ipda-desk-eurusd",
+  "version": "1.0.0",
+  "description": "EUR/USD Institutional ICT / IPDA Strategy Terminal & Real-Time Desk",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
