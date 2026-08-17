@@ -1,5 +1,5 @@
 import { getMarket, hydrateFromLive, MARKET_META } from "./data.js";
-import { analyze, killZones, executionFrom } from "./ict.js";
+import { analyze, killZones, executionFrom, calculateLockedCandleTargets, getExpirationTime } from "./ict.js";
 import { DeskChart } from "./chart.js";
 import { loadLiveBook, startStream } from "./live.js";
 import { mailEnabled, setMailEnabled, maybeNotify, sendAlert, lastMail, ALERT_EMAIL } from "./notify.js";
@@ -16,6 +16,7 @@ const state = {
   theme: "dark",
   market: null,
   analysis: null,
+  lockedTargets: {},
   chart: null,
   live: false,
   stopStream: null,
@@ -248,6 +249,119 @@ function renderExecution(ex, meta) {
   if (bar) bar.style.width = `${ex.progress || 0}%`;
 
   $("#exNote").textContent = ex.note || "Aligning PD arrays…";
+}
+
+/* =========================================================================
+   DEDICATED ALL-BLUE CANDLESTICK-EXPIRATION TARGETED PIPS RENDERER
+   ========================================================================= */
+
+function renderLockedCandleTargets(locked) {
+  const grid = $("#blueCandleGrid");
+  if (!grid || !locked) return;
+
+  const tfs = ["M15", "H1", "H4", "D1", "W1"];
+  grid.innerHTML = tfs
+    .map((tf) => {
+      const item = locked[tf];
+      if (!item) return "";
+      const tfName = tf === "M15" ? "15-MIN" : tf === "H1" ? "1-HOUR" : tf === "H4" ? "4-HOUR" : tf === "D1" ? "1-DAY" : "1-WEEK";
+      return `
+        <article class="blue-card" data-tf="${tf}">
+          <div class="blue-card-head">
+            <span class="blue-tf-pill">${tf} CANDLE</span>
+            <span class="blue-state-pill">🔒 LOCKED</span>
+          </div>
+
+          <div class="blue-pips-box">
+            <span class="blue-pips-label">TARGETED CANDLE PIPS</span>
+            <strong class="blue-pips-num">+${item.targetedPips} PIPS</strong>
+            <span class="blue-target-px">Target: <b>${fmt(item.targetPrice, 5)}</b></span>
+          </div>
+
+          <div class="blue-dol">
+            <b>DOL:</b> ${item.dol}
+          </div>
+
+          <div class="blue-meta-list">
+            <div class="blue-meta-item">
+              <span>Direction</span>
+              <b>${item.direction}</b>
+            </div>
+            <div class="blue-meta-item">
+              <span>Locked Open</span>
+              <b>${fmt(item.lockedPrice, 5)}</b>
+            </div>
+            <div class="blue-meta-item">
+              <span>Stop / Invalid</span>
+              <b style="color:#ef4444">${fmt(item.invalidPrice, 5)} (${item.stopPips}p)</b>
+            </div>
+            <div class="blue-meta-item">
+              <span>Confidence</span>
+              <b style="color:#38bdf8">${item.confidence}%</b>
+            </div>
+            <div class="blue-meta-item">
+              <span>Expired At</span>
+              <b>${item.closedBarFormatted}</b>
+            </div>
+          </div>
+
+          <div class="blue-countdown-box" id="blueCountdown_${tf}">
+            <span>CANDLE EXPIRATION:</span>
+            <em id="blueCd_${tf}">Calculating…</em>
+          </div>
+        </article>`;
+    })
+    .join("");
+
+  renderCandleCountdowns();
+}
+
+function formatCountdown(ms) {
+  if (ms <= 0) return "Expiring now…";
+  const totalSecs = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSecs / 3600);
+  const mins = Math.floor((totalSecs % 3600) / 60);
+  const secs = totalSecs % 60;
+
+  if (hours > 24) {
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return `${days}d ${remHours}h ${mins}m`;
+  }
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}h ${String(mins).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
+  }
+  return `${String(mins).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
+}
+
+function renderCandleCountdowns() {
+  const now = Date.now();
+  const tfs = ["M15", "H1", "H4", "D1", "W1"];
+
+  let shouldRefresh = false;
+
+  for (const tf of tfs) {
+    const expTime = getExpirationTime(tf, now);
+    const diff = expTime - now;
+    const cdEl = $(`#blueCd_${tf}`);
+    if (cdEl) {
+      cdEl.textContent = formatCountdown(diff);
+    }
+    if (diff <= 1000) {
+      shouldRefresh = true;
+    }
+  }
+
+  const m15Diff = getExpirationTime("M15", now) - now;
+  const headCount = $("#blueGlobalCountdown b");
+  if (headCount) {
+    headCount.textContent = formatCountdown(m15Diff);
+  }
+
+  if (shouldRefresh && state.market) {
+    state.lockedTargets = calculateLockedCandleTargets(state.market, state.lockedTargets, now);
+    renderLockedCandleTargets(state.lockedTargets);
+  }
 }
 
 function renderLimits(limits) {
@@ -543,6 +657,7 @@ function fullRender() {
   if (!a) return;
   renderTape(a);
   renderExecution(a.execution, a.meta);
+  renderLockedCandleTargets(state.lockedTargets);
   renderLimits(a.limits);
   renderPredictions(a.predictions);
   renderNarrative(a.narrative);
@@ -553,7 +668,8 @@ function fullRender() {
 }
 
 function rescan() {
-  state.analysis = analyze(state.market);
+  state.analysis = analyze(state.market, state.lockedTargets, Date.now());
+  state.lockedTargets = state.analysis.lockedCandleTargets;
   fullRender();
   maybeNotify(state.analysis.execution, state.market, (status, detail) => {
     const el = $("#mailStatus");
@@ -593,7 +709,7 @@ function updateTickUI(price, delta) {
     }
   }
 
-  // Update all real-time visual modules
+  // Update real-time visual modules
   renderTape(state.analysis, delta);
   renderExecution(state.analysis.execution, state.analysis.meta);
   renderLimits(state.analysis.limits);
@@ -687,7 +803,8 @@ function switchTF(tf) {
 async function boot() {
   initTheme();
   state.market = getMarket();
-  state.analysis = analyze(state.market);
+  state.analysis = analyze(state.market, {}, Date.now());
+  state.lockedTargets = state.analysis.lockedCandleTargets;
 
   const canvas = $("#tape");
   const overlay = $("#tapeOv");
@@ -698,6 +815,7 @@ async function boot() {
   fullRender();
   renderClock();
   window.setInterval(renderClock, 1000);
+  window.setInterval(renderCandleCountdowns, 1000);
 
   setTimeout(() => {
     $("#boot")?.classList.add("off");
@@ -708,7 +826,8 @@ async function boot() {
     const liveBook = await loadLiveBook();
     if (liveBook) {
       state.market = hydrateFromLive(liveBook);
-      state.analysis = analyze(state.market);
+      state.analysis = analyze(state.market, state.lockedTargets, Date.now());
+      state.lockedTargets = state.analysis.lockedCandleTargets;
       fullRender();
       setFeedStatus("live", `Connected to ${state.market.meta.source}`);
     }
@@ -731,7 +850,6 @@ async function boot() {
     },
   });
 
-  // Re-run full ICT rescan every 15 seconds
   window.setInterval(rescan, 15000);
 }
 

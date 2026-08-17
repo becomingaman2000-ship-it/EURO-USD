@@ -8,7 +8,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/app.css" />
 </head>
 <body>
@@ -145,6 +145,24 @@
       </div>
     </section>
 
+    <!-- DEDICATED ALL-BLUE CANDLESTICK EXPIRATION TARGETED PIPS SECTION -->
+    <section class="blue-candle-targets-panel" id="candleLockedPanel">
+      <header class="blue-head">
+        <div class="blue-head-left">
+          <span class="blue-kicker">CANDLESTICK EXPIRATION ENGINE · BAR-CLOSE LOCKED TARGETS</span>
+          <h2>Targeted Pips per Candlestick (15m → 1 Week)</h2>
+          <p>These targets are locked strictly when each candlestick expires/closes. Zero intra-candle repaint. Recalculates upon candle expiration.</p>
+        </div>
+        <div class="blue-head-right">
+          <span class="blue-lock-tag">🔒 BAR-CLOSE LOCKED</span>
+          <span class="blue-countdown-tag" id="blueGlobalCountdown">M15 Bar Expiration: <b>—</b></span>
+        </div>
+      </header>
+      <div id="blueCandleGrid" class="blue-candle-grid">
+        <!-- 5 Blue Timeframe Cards: M15, H1, H4, D1, W1 -->
+      </div>
+    </section>
+
     <section class="limits">
       <header class="limits-head">
         <div>
@@ -223,7 +241,7 @@
       <header class="pred-main-head">
         <div>
           <p class="eyebrow">Institutional Order Flow Delivery</p>
-          <h2>Price Predictions per Timeframe</h2>
+          <h2>Live Price Predictions per Timeframe</h2>
         </div>
         <div class="pred-tabs" id="predTabs">
           <!-- Dynamic Timeframe Tabs -->

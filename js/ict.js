@@ -106,20 +106,18 @@ function fvgs(bars, lookback = 180) {
   for (let i = start; i < bars.length - 1; i++) {
     const a = bars[i - 1];
     const c = bars[i + 1];
-    // Bullish FVG (BISI): bar[i+1].low > bar[i-1].high
     if (c.l > a.h + 0.3 * PIP) {
       gaps.push({
         type: "BULL",
         top: c.l,
         bot: a.h,
-        ce: mid(c.l, a.h), // Consequent Encroachment (50% midpoint)
+        ce: mid(c.l, a.h),
         t: bars[i].t,
         i,
         fill: 0,
         inverted: false,
       });
     } else if (c.h < a.l - 0.3 * PIP) {
-      // Bearish FVG (SIBI): bar[i+1].high < bar[i-1].low
       gaps.push({
         type: "BEAR",
         top: a.l,
@@ -145,7 +143,6 @@ function fvgs(bars, lookback = 180) {
         if (b.l <= g.bot) {
           g.fill = 1;
         }
-        // Inversion: candle body closes below the bottom of the bullish FVG
         if (b.c < g.bot) {
           g.inverted = true;
           g.inversionType = "BEAR_RESISTANCE";
@@ -157,7 +154,6 @@ function fvgs(bars, lookback = 180) {
         if (b.h >= g.top) {
           g.fill = 1;
         }
-        // Inversion: candle body closes above the top of the bearish FVG
         if (b.c > g.top) {
           g.inverted = true;
           g.inversionType = "BULL_SUPPORT";
@@ -383,13 +379,13 @@ function dealingRange(struct, price) {
 
   const oteBuy = [
     R5(hi - span * 0.62),
-    R5(hi - span * 0.705), // ICT 70.5% Sweet Spot
+    R5(hi - span * 0.705),
     R5(hi - span * 0.79),
   ];
 
   const oteSell = [
     R5(lo + span * 0.62),
-    R5(lo + span * 0.705), // ICT 70.5% Sweet Spot
+    R5(lo + span * 0.705),
     R5(lo + span * 0.79),
   ];
 
@@ -771,7 +767,6 @@ function predictForTF(tf, ctx) {
     const pdl = liq.extras?.find((x) => x.id === "PDL");
 
     direction = struct.trend === "BEARISH" || bias.shortTerm === "BEARISH" ? "DOWN" : "UP";
-    const openFvg = gaps.find((g) => g.fill < 0.8 && (direction === "UP" ? g.type === "BULL" && g.ce > price : g.type === "BEAR" && g.ce < price));
 
     if (direction === "DOWN") {
       dol = pdl ? `Previous Day Low (${pad(pdl.price)})` : "Sell-Side Liquidity Pool";
@@ -818,7 +813,7 @@ function predictForTF(tf, ctx) {
     title = "D1 Daily Candle Delivery & ADR Expansion";
     const pwh = liq.extras?.find((x) => x.id === "PWH");
     const pwl = liq.extras?.find((x) => x.id === "PWL");
-    const adr = 0.0070; // 70 pips ADR expectation
+    const adr = 0.0070;
 
     direction = bias.htf === "BULLISH" ? "UP" : bias.htf === "BEARISH" ? "DOWN" : (price >= range.eq ? "DOWN" : "UP");
 
@@ -840,7 +835,6 @@ function predictForTF(tf, ctx) {
       narrative = `Daily candle distribution following London open high. Expected expansion targeting the previous week low liquidity pool at ${pad(target)}.`;
     }
   } else {
-    // W1 Macro Horizon
     horizon = "1 – 4 Weeks (Macro Interbank IPDA)";
     title = "W1 Macro Interbank IPDA Dealing Range";
     const yrEq = MARKET_META.yearAvg;
@@ -941,6 +935,145 @@ function predictions(ctx, setups) {
       ],
     },
   };
+}
+
+/* =========================================================================
+   CANDLESTICK-EXPIRATION LOCKED TARGETS (M15 → W1)
+   Updates strictly when the candlestick expires/closes.
+   ========================================================================= */
+
+export function getExpirationTime(tf, now = Date.now()) {
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (tf === "M15") {
+    const ms = 15 * 60 * 1000;
+    return Math.floor(now / ms) * ms + ms;
+  }
+  if (tf === "H1") {
+    const ms = 60 * 60 * 1000;
+    return Math.floor(now / ms) * ms + ms;
+  }
+  if (tf === "H4") {
+    const ms = 4 * 60 * 60 * 1000;
+    return Math.floor(now / ms) * ms + ms;
+  }
+  if (tf === "D1") {
+    // Closes at 17:00 NY time (21:00 UTC during EDT)
+    const d = new Date(now);
+    const { hour, minute } = nyParts(now);
+    if (hour >= 17) d.setUTCDate(d.getUTCDate() + 1);
+    d.setUTCHours(21, 0, 0, 0);
+    return d.getTime();
+  }
+  if (tf === "W1") {
+    // Closes Friday 17:00 NY time
+    const d = new Date(now);
+    const day = d.getUTCDay();
+    let diff = (5 - day + 7) % 7;
+    if (diff === 0) {
+      const { hour } = nyParts(now);
+      if (hour >= 17) diff = 7;
+    }
+    d.setUTCDate(d.getUTCDate() + diff);
+    d.setUTCHours(21, 0, 0, 0);
+    return d.getTime();
+  }
+  return now + 60000;
+}
+
+export function calculateLockedCandleTargets(market, prevLocked = {}, now = Date.now()) {
+  const result = { ...prevLocked };
+  const tfs = ["M15", "H1", "H4", "D1", "W1"];
+
+  for (const tf of tfs) {
+    const bars = market.frames[tf] || [];
+    if (bars.length < 2) continue;
+
+    // The last completed/expired candlestick
+    const closedBar = bars[bars.length - 2] || bars[bars.length - 1];
+    const closedBarTime = closedBar.t;
+
+    // If we already have a locked calculation for this exact closed candle, keep it (zero repaint!)
+    if (prevLocked[tf] && prevLocked[tf].closedBarTime === closedBarTime && prevLocked[tf].lockedPrice != null) {
+      result[tf] = prevLocked[tf];
+      continue;
+    }
+
+    // A candlestick has expired! Compute the new locked targeted pips based on the closed candle
+    const lockedPrice = closedBar.c;
+    const atr = atr14(bars.slice(0, -1));
+
+    let targetedPips, stopPips, direction, dol, model, narrative, confidence;
+    const isBull = closedBar.c >= closedBar.o;
+
+    if (tf === "M15") {
+      direction = isBull ? "BULLISH EXPANSION" : "BEARISH DISTRIBUTION";
+      targetedPips = +((Math.max(atr * 1.3, 0.0016) / PIP).toFixed(1)); // ~16-24 pips
+      stopPips = +((Math.max(atr * 0.8, 0.0010) / PIP).toFixed(1));
+      dol = isBull ? "M15 Buy-Side High / Premium FVG" : "M15 Sell-Side Low / Discount FVG";
+      model = "ICT 2022 M15 Silver Bullet";
+      confidence = 88;
+      narrative = `Previous 15m candle expired at ${pad(lockedPrice)}. Order flow locked ${direction} for the next 15m window targeting ${targetedPips} pips expansion.`;
+    } else if (tf === "H1") {
+      direction = isBull ? "BULLISH EXPANSION" : "BEARISH DISTRIBUTION";
+      targetedPips = +((Math.max(atr * 1.4, 0.0034) / PIP).toFixed(1)); // ~34-48 pips
+      stopPips = +((Math.max(atr * 0.7, 0.0018) / PIP).toFixed(1));
+      dol = isBull ? "Previous Day High (PDH) Pool" : "Previous Day Low (PDL) Pool";
+      model = "H1 Session Judas & Expansion";
+      confidence = 84;
+      narrative = `Previous 1-hour candle expired at ${pad(lockedPrice)}. Session trajectory locked for a ${targetedPips}-pip run into key interbank liquidity.`;
+    } else if (tf === "H4") {
+      direction = isBull ? "BULLISH SWING" : "BEARISH SWING";
+      targetedPips = +((Math.max(atr * 1.5, 0.0068) / PIP).toFixed(1)); // ~68-90 pips
+      stopPips = +((Math.max(atr * 0.6, 0.0030) / PIP).toFixed(1));
+      dol = isBull ? "H4 Premium Breaker Block / 70.5% OTE" : "H4 Discount Breaker Block / 70.5% OTE";
+      model = "H4 Intermediate Swing Rebalancing";
+      confidence = 80;
+      narrative = `4-hour candle closed at ${pad(lockedPrice)}. Dealing range locked for a ${targetedPips}-pip swing rebalancing into the target array.`;
+    } else if (tf === "D1") {
+      direction = isBull ? "BULLISH DAY" : "BEARISH DAY";
+      targetedPips = +((Math.max(atr * 1.2, 0.0088) / PIP).toFixed(1)); // ~88-115 pips ADR
+      stopPips = +((Math.max(atr * 0.5, 0.0040) / PIP).toFixed(1));
+      dol = isBull ? "Previous Week High (PWH)" : "Previous Week Low (PWL)";
+      model = "D1 Classic OHLC Daily ADR Expansion";
+      confidence = 85;
+      narrative = `Daily candle expired at ${pad(lockedPrice)}. Daily delivery profile locked targeting ${targetedPips} pips of ADR expansion.`;
+    } else {
+      // W1
+      direction = isBull ? "BULLISH MACRO" : "BEARISH MACRO";
+      targetedPips = +((Math.max(atr * 1.3, 0.0210) / PIP).toFixed(1)); // ~210-280 pips
+      stopPips = +((Math.max(atr * 0.5, 0.0090) / PIP).toFixed(1));
+      dol = isBull ? "2026 Yearly Range High (1.12750)" : "2026 Yearly Range Low (1.03300)";
+      model = "Macro IPDA Yearly Dealing Range";
+      confidence = 90;
+      narrative = `Weekly candle closed at ${pad(lockedPrice)}. Macro interbank IPDA program locked targeting ${targetedPips} pips macro delivery.`;
+    }
+
+    const isUp = direction.includes("BULLISH");
+    const targetPrice = R5(lockedPrice + (isUp ? targetedPips * PIP : -targetedPips * PIP));
+    const invalidPrice = R5(lockedPrice - (isUp ? stopPips * PIP : -stopPips * PIP));
+    const d = new Date(closedBarTime);
+    const closedBarFormatted = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")} UTC`;
+
+    result[tf] = {
+      tf,
+      closedBarTime,
+      closedBarFormatted,
+      lockedPrice: R5(lockedPrice),
+      direction,
+      isUp,
+      targetedPips,
+      targetPrice,
+      stopPips,
+      invalidPrice,
+      dol,
+      model,
+      confidence,
+      narrative,
+      nextExpiration: getExpirationTime(tf, now),
+    };
+  }
+
+  return result;
 }
 
 function narrative(ctx, pred, setups, confluence) {
@@ -1310,7 +1443,7 @@ function buildSessionLimits(ctx, setups, kz) {
   return [daily, asianCard, londonCard, nyAmCard, nyPm];
 }
 
-export function analyze(market, now = Date.now()) {
+export function analyze(market, prevLockedTargets = {}, now = Date.now()) {
   const frames = {
     M15: framePack(market.frames.M15, 2),
     H1: framePack(market.frames.H1, 2),
@@ -1379,6 +1512,7 @@ export function analyze(market, now = Date.now()) {
   const execution = executionFrom(setups, price, now, po3, bias, kzNow);
   const limits = buildSessionLimits(ctx, setups, kzNow);
   const pdArrays = collectPD(frames, price);
+  const lockedCandleTargets = calculateLockedCandleTargets(market, prevLockedTargets, now);
 
   return {
     asOf: now,
@@ -1414,6 +1548,7 @@ export function analyze(market, now = Date.now()) {
     execution,
     limits,
     predictions: pred,
+    lockedCandleTargets,
     narrative: story,
     smt: smtData,
     keyLevels: uniqueLevels([
