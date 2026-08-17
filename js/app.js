@@ -121,12 +121,25 @@ function renderClock() {
   }
 }
 
-function renderTape(a) {
+function renderTape(a, tickDelta = 0) {
   const chg = a.price - (a.meta.prevClose || a.price);
   const pct = (chg / (a.meta.prevClose || a.price)) * 100;
   const pipsChg = chg / PIP;
 
-  $("#spot").textContent = fmt(a.price, 5);
+  const spotEl = $("#spot");
+  if (spotEl) {
+    spotEl.textContent = fmt(a.price, 5);
+    if (tickDelta > 0) {
+      spotEl.classList.remove("flash-dn");
+      spotEl.classList.add("flash-up");
+      setTimeout(() => spotEl.classList.remove("flash-up"), 300);
+    } else if (tickDelta < 0) {
+      spotEl.classList.remove("flash-up");
+      spotEl.classList.add("flash-dn");
+      setTimeout(() => spotEl.classList.remove("flash-dn"), 300);
+    }
+  }
+
   $("#spotChg").textContent = `${chg >= 0 ? "+" : ""}${fmt(chg, 5)} (${chg >= 0 ? "+" : ""}${pipsChg.toFixed(1)} pips · ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
   $("#spotChg").className = "chg " + (chg >= 0 ? "up" : "down");
   $("#asOf").textContent = feedLabel(a.meta);
@@ -548,6 +561,54 @@ function rescan() {
   });
 }
 
+function updateTickUI(price, delta) {
+  if (!state.analysis) return;
+  state.analysis.price = price;
+
+  // Real-time execution recalculation
+  state.analysis.execution = executionFrom(
+    state.analysis.setups,
+    price,
+    Date.now(),
+    state.analysis.po3,
+    state.analysis.bias
+  );
+
+  // Real-time prediction distance recalculation for each timeframe
+  if (state.analysis.predictions?.byTF) {
+    for (const p of Object.values(state.analysis.predictions.byTF)) {
+      p.current = price;
+      p.targetPips = +((Math.abs(p.target - price) / PIP).toFixed(1));
+      p.stretchPips = +((Math.abs(p.stretch - price) / PIP).toFixed(1));
+      p.invalidPips = +((Math.abs(p.invalid - price) / PIP).toFixed(1));
+    }
+  }
+
+  // Real-time session limits distance recalculation
+  if (state.analysis.limits) {
+    for (const lim of state.analysis.limits) {
+      if (lim.limit != null) {
+        lim.dist = +((Math.abs(price - lim.limit) / PIP).toFixed(1));
+      }
+    }
+  }
+
+  // Update all real-time visual modules
+  renderTape(state.analysis, delta);
+  renderExecution(state.analysis.execution, state.analysis.meta);
+  renderLimits(state.analysis.limits);
+  renderPredictions(state.analysis.predictions);
+
+  // Redraw chart canvas on tick
+  state.chart.setData(state.market.frames[state.tf], state.analysis, state.tf, { preserve: true, soft: true });
+
+  // Check email notifications
+  maybeNotify(state.analysis.execution, state.market, (status, detail) => {
+    const el = $("#mailStatus");
+    if (el) el.textContent = detail;
+  });
+}
+
 function initUI() {
   // Theme toggle button
   $("#themeToggle")?.addEventListener("click", toggleTheme);
@@ -657,22 +718,12 @@ async function boot() {
 
   let lastBarCount = state.market.frames.M15.length;
   state.stopStream = startStream(state.market, {
-    onTick: ({ price, ts, opened }) => {
+    onTick: ({ price, delta, ts, opened }) => {
       if (opened || state.market.frames.M15.length !== lastBarCount) {
         lastBarCount = state.market.frames.M15.length;
         rescan();
       } else {
-        state.analysis.price = price;
-        state.analysis.execution = executionFrom(
-          state.analysis.setups,
-          price,
-          Date.now(),
-          state.analysis.po3,
-          state.analysis.bias
-        );
-        renderTape(state.analysis);
-        renderExecution(state.analysis.execution, state.analysis.meta);
-        state.chart.draw();
+        updateTickUI(price, delta);
       }
     },
     onStatus: ({ state: st, detail }) => {
@@ -680,7 +731,8 @@ async function boot() {
     },
   });
 
-  window.setInterval(rescan, 20000);
+  // Re-run full ICT rescan every 15 seconds
+  window.setInterval(rescan, 15000);
 }
 
 boot();
