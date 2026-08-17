@@ -11,6 +11,7 @@ const PIP = MARKET_META.pip; // 0.0001
 
 const state = {
   tf: "H1",
+  predTf: "H1",
   market: null,
   analysis: null,
   chart: null,
@@ -247,33 +248,155 @@ function renderSetups(setups) {
     .join("");
 }
 
-function renderPredictions(p) {
-  const grid = $("#predGrid");
-  if (!grid || !p) return;
-  const cards = [
-    ["Intraday", p.intraday],
-    ["Daily (24h)", p.day],
-    ["Swing (1–3w)", p.swing],
-  ];
-  grid.innerHTML = cards
-    .map(
-      ([title, c]) => `
-      <article class="pred-card">
-        <header>
-          <span>${title}</span>
-          <b class="${clsBias(c.direction)}">${c.direction}</b>
-        </header>
-        <div class="p-main">
-          <div><span>Target</span><b>${fmt(c.target, 5)}</b></div>
-          <div><span>Stretch</span><b>${fmt(c.stretch, 5)}</b></div>
-          <div><span>Invalidation</span><b>${fmt(c.invalid, 5)}</b></div>
-          <div><span>Confidence</span><b>${c.confidence}%</b></div>
-        </div>
-        <p>${c.text}</p>
-      </article>`
-    )
-    .join("");
+/* =========================================================================
+   PER-TIMEFRAME PREDICTION RENDERER & MULTI-TIMEFRAME MATRIX
+   ========================================================================= */
 
+function renderPredictions(p) {
+  if (!p?.byTF) return;
+
+  // Render Timeframe tabs on prediction panel
+  const tabsContainer = $("#predTabs");
+  const activeTf = state.predTf || "H1";
+
+  if (tabsContainer) {
+    const tfs = ["M15", "H1", "H4", "D1", "W1"];
+    tabsContainer.innerHTML = tfs
+      .map(
+        (tf) => `
+        <button type="button" class="pred-tab ${tf === activeTf ? "active" : ""}" data-ptf="${tf}">
+          <b>${tf}</b> <span>${tf === "M15" ? "Scalp" : tf === "H1" ? "Session" : tf === "H4" ? "Swing" : tf === "D1" ? "Daily" : "Macro"}</span>
+        </button>`
+      )
+      .join("");
+
+    $$("#predTabs button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.predTf = btn.dataset.ptf;
+        renderPredictions(state.analysis.predictions);
+      });
+    });
+  }
+
+  // Render Active Featured Timeframe Card
+  const active = p.byTF[activeTf] || p.byTF.H1;
+  const featuredBox = $("#predFeatured");
+  if (featuredBox && active) {
+    const isUp = active.direction === "UP";
+    const dirClass = isUp ? "up" : "down";
+    const dirLabel = isUp ? "BULLISH EXPANSION" : "BEARISH DISTRIBUTION";
+
+    featuredBox.innerHTML = `
+      <article class="pred-featured ${dirClass}">
+        <div class="pf-header">
+          <div>
+            <span class="pf-badge">${active.tf} PREDICTION</span>
+            <h3>${active.title}</h3>
+            <p class="pf-horizon">Horizon: <b>${active.horizon}</b> · Model: <b>${active.model}</b></p>
+          </div>
+          <div class="pf-dir-pill ${dirClass}">
+            <b>${active.direction}</b>
+            <span>${dirLabel}</span>
+          </div>
+        </div>
+
+        <div class="pf-target-banner">
+          <div class="pf-tb-left">
+            <span>DRAW ON LIQUIDITY TARGET</span>
+            <strong>${fmt(active.target, 5)}</strong>
+            <em class="${dirClass}">${isUp ? "+" : "-"}${active.targetPips} pips from spot</em>
+          </div>
+          <div class="pf-tb-mid">
+            <span>TARGET LIQUIDITY POOL (DOL)</span>
+            <b>${active.dol}</b>
+          </div>
+          <div class="pf-tb-right">
+            <span>CONFIDENCE</span>
+            <b class="conf-pct">${active.confidence}%</b>
+          </div>
+        </div>
+
+        <div class="pf-metrics">
+          <div class="pf-metric">
+            <span>Primary Target (TP1)</span>
+            <b class="${dirClass}">${fmt(active.target, 5)}</b>
+            <small>${active.targetPips} pips</small>
+          </div>
+          <div class="pf-metric">
+            <span>Stretch Target (TP2)</span>
+            <b>${fmt(active.stretch, 5)}</b>
+            <small>${active.stretchPips} pips</small>
+          </div>
+          <div class="pf-metric">
+            <span>Protective Invalidation</span>
+            <b class="invalid-num">${fmt(active.invalid, 5)}</b>
+            <small>${active.invalidPips} pips away</small>
+          </div>
+          <div class="pf-metric">
+            <span>Current Spot</span>
+            <b>${fmt(active.current, 5)}</b>
+            <small>Active tape</small>
+          </div>
+        </div>
+
+        <div class="pf-narrative">
+          <h4>Institutional Order Flow Read (${active.tf})</h4>
+          <p>${active.narrative}</p>
+        </div>
+      </article>`;
+  }
+
+  // Render Multi-Timeframe Prediction Matrix Table
+  const matrix = $("#predMatrix");
+  if (matrix) {
+    const tfs = ["M15", "H1", "H4", "D1", "W1"];
+    const rows = tfs.map((tf) => {
+      const c = p.byTF[tf];
+      const cls = c.direction === "UP" ? "up" : "down";
+      return `
+        <tr class="${tf === activeTf ? "highlight-row" : ""}" data-ptf="${tf}">
+          <td class="tf-cell"><b>${tf}</b> <small>${c.horizon.split(" ")[0]} ${c.horizon.split(" ")[1] || ""}</small></td>
+          <td><span class="seal ${cls}">${c.direction}</span></td>
+          <td class="mono bold ${cls}">${fmt(c.target, 5)}</td>
+          <td class="mono ${cls}">${c.direction === "UP" ? "+" : "-"}${c.targetPips}p</td>
+          <td class="dol-cell">${c.dol}</td>
+          <td class="mono invalid-num">${fmt(c.invalid, 5)}</td>
+          <td class="mono">${c.confidence}%</td>
+          <td><span class="model-badge">${c.model}</span></td>
+        </tr>`;
+    });
+
+    matrix.innerHTML = `
+      <div class="matrix-table-wrap">
+        <table class="pred-matrix-table">
+          <thead>
+            <tr>
+              <th>Timeframe</th>
+              <th>Bias</th>
+              <th>Target (TP1)</th>
+              <th>Distance</th>
+              <th>Draw on Liquidity (DOL)</th>
+              <th>Invalidation</th>
+              <th>Confidence</th>
+              <th>Setup Model</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.join("")}
+          </tbody>
+        </table>
+      </div>`;
+
+    // Row click handler to switch active featured card
+    $$("#predMatrix tr[data-ptf]").forEach((row) => {
+      row.addEventListener("click", () => {
+        state.predTf = row.dataset.ptf;
+        renderPredictions(state.analysis.predictions);
+      });
+    });
+  }
+
+  // Render Scenarios
   const sc = $("#scenarios");
   if (sc && p.scenarios) {
     sc.innerHTML = p.scenarios
@@ -391,13 +514,15 @@ function rescan() {
 }
 
 function initUI() {
-  // Timeframe buttons
+  // Timeframe buttons on toolbar
   $$(".toolbar .tf button").forEach((btn) => {
     btn.addEventListener("click", () => {
       $$(".toolbar .tf button").forEach((b) => b.classList.remove("on"));
       btn.classList.add("on");
       state.tf = btn.dataset.tf;
+      state.predTf = btn.dataset.tf; // keep prediction tab in sync
       state.chart.setData(state.market.frames[state.tf], state.analysis, state.tf);
+      renderPredictions(state.analysis.predictions);
     });
   });
 
@@ -453,8 +578,10 @@ function initUI() {
 
 function switchTF(tf) {
   state.tf = tf;
+  state.predTf = tf;
   $$(".toolbar .tf button").forEach((b) => b.classList.toggle("on", b.dataset.tf === tf));
   state.chart.setData(state.market.frames[tf], state.analysis, tf);
+  renderPredictions(state.analysis.predictions);
 }
 
 async function boot() {
@@ -471,12 +598,10 @@ async function boot() {
   renderClock();
   window.setInterval(renderClock, 1000);
 
-  // Fade out boot screen
   setTimeout(() => {
     $("#boot")?.classList.add("off");
   }, 400);
 
-  // Connect live interbank feed
   setFeedStatus("seek", "Connecting to live EUR/USD feed…");
   try {
     const liveBook = await loadLiveBook();
@@ -490,16 +615,13 @@ async function boot() {
     setFeedStatus("fallback", "Using interbank composite tape");
   }
 
-  // Start real-time tick streaming
   let lastBarCount = state.market.frames.M15.length;
   state.stopStream = startStream(state.market, {
     onTick: ({ price, ts, opened }) => {
-      // If a new candle opened or 30s elapsed, rescan the full ICT engine
       if (opened || state.market.frames.M15.length !== lastBarCount) {
         lastBarCount = state.market.frames.M15.length;
         rescan();
       } else {
-        // Fast UI tick update
         state.analysis.price = price;
         state.analysis.execution = executionFrom(
           state.analysis.setups,
@@ -518,7 +640,6 @@ async function boot() {
     },
   });
 
-  // Periodic ICT full rescan every 20 seconds
   window.setInterval(rescan, 20000);
 }
 

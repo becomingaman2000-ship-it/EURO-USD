@@ -152,6 +152,7 @@
             <button data-ov="liq" class="on">Liquidity</button>
             <button data-ov="eq" class="on">EQ / OTE</button>
             <button data-ov="sessions" class="on">Sessions</button>
+            <button data-ov="pred" class="on">Predictions</button>
             <button data-ov="setup" class="on">Setup</button>
           </div>
           <button id="rescan" class="ghost">Rescan IPDA</button>
@@ -197,10 +198,37 @@
       </aside>
     </section>
 
-    <section class="band">
-      <h2>Multi-horizon IPDA prediction</h2>
-      <div id="predGrid" class="pred"></div>
-      <ol id="scenarios" class="scen"></ol>
+    <!-- ENHANCED MULTI-TIMEFRAME PREDICTIONS SECTION -->
+    <section class="predictions-panel">
+      <header class="pred-main-head">
+        <div>
+          <p class="eyebrow">Institutional Order Flow Delivery</p>
+          <h2>Price Predictions per Timeframe</h2>
+        </div>
+        <div class="pred-tabs" id="predTabs">
+          <!-- Dynamic Timeframe Tabs -->
+        </div>
+      </header>
+
+      <!-- Featured Active Timeframe Card -->
+      <div id="predFeatured" class="pred-featured-container"></div>
+
+      <!-- Comprehensive Multi-Timeframe Matrix -->
+      <div class="pred-matrix-section">
+        <header class="matrix-head">
+          <h3>Multi-Timeframe Prediction Matrix</h3>
+          <span>Synchronized interbank draw on liquidity (DOL) alignment across all 5 horizons</span>
+        </header>
+        <div id="predMatrix"></div>
+      </div>
+
+      <!-- Scenarios Breakdown -->
+      <div class="scenarios-wrap">
+        <header class="scenarios-head">
+          <h3>Delivery Scenarios &amp; Probability Paths</h3>
+        </header>
+        <ol id="scenarios" class="scen"></ol>
+      </div>
     </section>
 
     <section class="split">

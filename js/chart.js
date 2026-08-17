@@ -30,13 +30,13 @@ export class DeskChart {
       eq: true,
       sessions: true,
       setup: true,
-      sma: true,
+      pred: true,
     };
     this.view = { end: 0, count: 80 };
     this.hover = null;
     this.drag = null;
     this.dpr = 1;
-    this.pad = { l: 12, r: 76, t: 18, b: 28 };
+    this.pad = { l: 12, r: 84, t: 18, b: 28 };
     this.onHover = null;
     this.bind();
   }
@@ -218,6 +218,9 @@ export class DeskChart {
       this.drawLiquidity(ctx, inn, m, mm, bars);
     }
     this.drawCandles(ctx, inn, m, bars);
+    if (this.overlays.pred && this.analysis?.predictions?.byTF?.[this.tf]) {
+      this.drawTFPrediction(ctx, inn, m, mm);
+    }
     if (this.overlays.setup && this.analysis?.execution) {
       this.drawSetup(ctx, inn, m, mm);
     }
@@ -233,7 +236,6 @@ export class DeskChart {
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
 
-    // Dynamic price grid lines for EUR/USD (every 10–25 pips)
     const rawStep = mm.span / 6;
     const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
     const nice = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((k) => k >= rawStep) || rawStep;
@@ -249,7 +251,6 @@ export class DeskChart {
       ctx.fillText(fmt(p, 5), inn.x + inn.w + 6, y);
     }
 
-    // Time axis markers
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     const xStep = Math.max(1, Math.floor(bars.length / 7));
@@ -279,12 +280,9 @@ export class DeskChart {
       const t = hour + minute / 60;
 
       let color = null;
-      // Asian Range (20:00 - 00:00 NY)
-      if (t >= 20 || t < 0) color = "rgba(122, 155, 184, 0.05)";
-      // London Kill Zone (02:00 - 05:00 NY)
-      else if (t >= 2 && t < 5) color = "rgba(196, 163, 90, 0.06)";
-      // NY AM Kill Zone (07:00 - 10:00 NY)
-      else if (t >= 7 && t < 10) color = "rgba(111, 191, 154, 0.06)";
+      if (t >= 20 || t < 0) color = "rgba(122, 155, 184, 0.05)"; // Asian Range
+      else if (t >= 2 && t < 5) color = "rgba(196, 163, 90, 0.06)"; // London Kill Zone
+      else if (t >= 7 && t < 10) color = "rgba(111, 191, 154, 0.06)"; // NY AM Kill Zone
 
       if (color) {
         const x1 = m.xOf(i) - m.step / 2;
@@ -303,7 +301,6 @@ export class DeskChart {
     const yEq = m.yOf(eq);
 
     ctx.save();
-    // EQ Line
     ctx.strokeStyle = "rgba(196, 163, 90, 0.6)";
     ctx.setLineDash([4, 4]);
     ctx.lineWidth = 1.2;
@@ -317,7 +314,6 @@ export class DeskChart {
     ctx.textAlign = "left";
     ctx.fillText(`EQ ${fmt(eq, 5)}`, inn.x + 8, yEq - 4);
 
-    // OTE Golden Zone Shading (62% – 79%)
     if (range.oteBuy?.length >= 3) {
       const topBuy = m.yOf(range.oteBuy[0]);
       const botBuy = m.yOf(range.oteBuy[2]);
@@ -359,7 +355,6 @@ export class DeskChart {
       ctx.fillRect(x1, yTop, x2 - x1, height);
       ctx.strokeRect(x1, yTop, x2 - x1, height);
 
-      // Consequent Encroachment (CE 50%) line
       ctx.setLineDash([2, 3]);
       ctx.beginPath();
       ctx.moveTo(x1, yCe);
@@ -403,7 +398,6 @@ export class DeskChart {
     if (!liq) return;
     ctx.save();
 
-    // Key calendar liquidity lines (PDH, PDL, PWH, PWL)
     for (const ext of liq.extras || []) {
       const y = Math.round(m.yOf(ext.price));
       if (y < inn.y || y > inn.y + inn.h) continue;
@@ -421,6 +415,49 @@ export class DeskChart {
       ctx.textAlign = "right";
       ctx.fillText(`${ext.id} · ${fmt(ext.price, 5)}`, inn.x + inn.w - 8, y - 3);
     }
+    ctx.restore();
+  }
+
+  drawTFPrediction(ctx, inn, m, mm) {
+    const pred = this.analysis?.predictions?.byTF?.[this.tf];
+    if (!pred || !pred.target) return;
+
+    ctx.save();
+    const yTarget = m.yOf(pred.target);
+    const yInvalid = m.yOf(pred.invalid);
+
+    if (yTarget >= inn.y && yTarget <= inn.y + inn.h) {
+      // Prediction Target Line
+      ctx.strokeStyle = pred.direction === "UP" ? "#6fbf9a" : "#d36a6a";
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(inn.x, yTarget);
+      ctx.lineTo(inn.x + inn.w, yTarget);
+      ctx.stroke();
+
+      ctx.fillStyle = pred.direction === "UP" ? "#6fbf9a" : "#d36a6a";
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "right";
+      ctx.fillText(`${this.tf} TARGET: ${fmt(pred.target, 5)} (${pred.targetPips}p)`, inn.x + inn.w - 8, yTarget - 4);
+    }
+
+    if (yInvalid >= inn.y && yInvalid <= inn.y + inn.h) {
+      // Invalidation Line
+      ctx.strokeStyle = "rgba(211, 106, 106, 0.85)";
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([2, 4]);
+      ctx.beginPath();
+      ctx.moveTo(inn.x, yInvalid);
+      ctx.lineTo(inn.x + inn.w, yInvalid);
+      ctx.stroke();
+
+      ctx.fillStyle = "#d36a6a";
+      ctx.font = "9px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "right";
+      ctx.fillText(`${this.tf} INVALID: ${fmt(pred.invalid, 5)}`, inn.x + inn.w - 8, yInvalid + 10);
+    }
+
     ctx.restore();
   }
 
@@ -491,26 +528,23 @@ export class DeskChart {
 
   drawCrosshair(ctx, inn, m, mm) {
     if (!this.hover) return;
-    const { x, y, price, bar } = this.hover;
+    const { x, y, price } = this.hover;
 
     ctx.save();
     ctx.strokeStyle = "rgba(196, 163, 90, 0.4)";
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 3]);
 
-    // Vertical line
     ctx.beginPath();
     ctx.moveTo(x, inn.y);
     ctx.lineTo(x, inn.y + inn.h);
     ctx.stroke();
 
-    // Horizontal line
     ctx.beginPath();
     ctx.moveTo(inn.x, y);
     ctx.lineTo(inn.x + inn.w, y);
     ctx.stroke();
 
-    // Price badge on Y axis
     ctx.fillStyle = "#c4a35a";
     ctx.fillRect(inn.x + inn.w + 2, y - 8, inn.r - 4, 16);
     ctx.fillStyle = "#0c0d11";
