@@ -819,7 +819,14 @@ async function boot() {
 
   setTimeout(() => {
     $("#boot")?.classList.add("off");
+    state.chart.resize();
+    state.chart.draw();
   }, 400);
+
+  setTimeout(() => {
+    state.chart.resize();
+    state.chart.draw();
+  }, 700);
 
   setFeedStatus("seek", "Connecting to live EUR/USD feed…");
   try {

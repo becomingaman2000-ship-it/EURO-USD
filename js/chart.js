@@ -1,4 +1,5 @@
-/* Institutional Canvas Candlestick Chart with ICT Overlays for EUR/USD. */
+/* Institutional Canvas Candlestick Chart with Clean ICT Overlays for EUR/USD.
+   Refined high-DPI rendering, anti-clutter PD array clipping, and professional styling. */
 
 import { MARKET_META, roundPx, nyParts } from "./data.js";
 
@@ -32,70 +33,88 @@ export class DeskChart {
       setup: true,
       pred: true,
     };
-    this.view = { end: 0, count: 80 };
+    this.view = { end: 0, count: 75 };
     this.hover = null;
     this.drag = null;
-    this.dpr = 1;
-    this.pad = { l: 12, r: 84, t: 18, b: 28 };
+    this.dpr = window.devicePixelRatio || 1;
+    this.pad = { l: 12, r: 84, t: 22, b: 28 };
     this.onHover = null;
     this.bind();
+    this.setupResizeObserver();
+  }
+
+  setupResizeObserver() {
+    if (window.ResizeObserver && this.canvas.parentElement) {
+      const ro = new ResizeObserver(() => {
+        this.resize();
+      });
+      ro.observe(this.canvas.parentElement);
+    }
   }
 
   getThemeColors() {
     const isLight = document.documentElement.getAttribute("data-theme") === "light";
     if (isLight) {
       return {
+        isLight: true,
         bg: "#ffffff",
         grid: "rgba(160, 130, 60, 0.12)",
-        text: "#555e6d",
+        gridText: "#525e70",
         bullCandle: "#0d8a50",
         bearCandle: "#d12c2c",
-        bullFvg: "rgba(13, 138, 80, 0.14)",
-        bullFvgBorder: "rgba(13, 138, 80, 0.6)",
-        bearFvg: "rgba(209, 44, 44, 0.14)",
-        bearFvgBorder: "rgba(209, 44, 44, 0.6)",
-        bullOb: "rgba(13, 138, 80, 0.12)",
-        bullObBorder: "rgba(13, 138, 80, 0.6)",
-        bearOb: "rgba(209, 44, 44, 0.12)",
-        bearObBorder: "rgba(209, 44, 44, 0.6)",
-        eqLine: "rgba(158, 122, 43, 0.8)",
+        bullBody: "#109456",
+        bearBody: "#dc2626",
+        fvgBullFill: "rgba(13, 138, 80, 0.10)",
+        fvgBullStroke: "rgba(13, 138, 80, 0.55)",
+        fvgBearFill: "rgba(209, 44, 44, 0.10)",
+        fvgBearStroke: "rgba(209, 44, 44, 0.55)",
+        obBullFill: "rgba(13, 138, 80, 0.08)",
+        obBullStroke: "rgba(13, 138, 80, 0.50)",
+        obBearFill: "rgba(209, 44, 44, 0.08)",
+        obBearStroke: "rgba(209, 44, 44, 0.50)",
+        eqLine: "rgba(158, 122, 43, 0.75)",
         eqText: "#9e7a2b",
-        oteShade: "rgba(13, 138, 80, 0.08)",
-        crosshair: "rgba(160, 130, 60, 0.5)",
-        crosshairBadge: "#1a1f2c",
+        oteShade: "rgba(13, 138, 80, 0.06)",
+        crosshair: "rgba(160, 130, 60, 0.45)",
+        crosshairBadge: "#1e293b",
         crosshairText: "#ffffff",
         targetLine: "#0d8a50",
         invalidLine: "#d12c2c",
-        sessAsian: "rgba(27, 109, 165, 0.06)",
-        sessLondon: "rgba(158, 122, 43, 0.08)",
-        sessNy: "rgba(13, 138, 80, 0.08)",
+        sessAsian: "rgba(37, 99, 235, 0.05)",
+        sessLondon: "rgba(158, 122, 43, 0.06)",
+        sessNy: "rgba(13, 138, 80, 0.06)",
+        sessText: "#2563eb",
       };
     } else {
       return {
+        isLight: false,
         bg: "#0c0d11",
         grid: "rgba(196, 163, 90, 0.08)",
-        text: "#8a8478",
-        bullCandle: "#6fbf9a",
-        bearCandle: "#d36a6a",
-        bullFvg: "rgba(111, 191, 154, 0.14)",
-        bullFvgBorder: "rgba(111, 191, 154, 0.5)",
-        bearFvg: "rgba(211, 106, 106, 0.14)",
-        bearFvgBorder: "rgba(211, 106, 106, 0.5)",
-        bullOb: "rgba(111, 191, 154, 0.12)",
-        bullObBorder: "rgba(111, 191, 154, 0.5)",
-        bearOb: "rgba(211, 106, 106, 0.12)",
-        bearObBorder: "rgba(211, 106, 106, 0.5)",
+        gridText: "#8a8478",
+        bullCandle: "#10b981",
+        bearCandle: "#f43f5e",
+        bullBody: "#10b981",
+        bearBody: "#f43f5e",
+        fvgBullFill: "rgba(16, 185, 129, 0.12)",
+        fvgBullStroke: "rgba(16, 185, 129, 0.5)",
+        fvgBearFill: "rgba(244, 63, 94, 0.12)",
+        fvgBearStroke: "rgba(244, 63, 94, 0.5)",
+        obBullFill: "rgba(16, 185, 129, 0.08)",
+        obBullStroke: "rgba(16, 185, 129, 0.45)",
+        obBearFill: "rgba(244, 63, 94, 0.08)",
+        obBearStroke: "rgba(244, 63, 94, 0.45)",
         eqLine: "rgba(196, 163, 90, 0.6)",
         eqText: "#c4a35a",
-        oteShade: "rgba(111, 191, 154, 0.07)",
+        oteShade: "rgba(16, 185, 129, 0.06)",
         crosshair: "rgba(196, 163, 90, 0.4)",
         crosshairBadge: "#c4a35a",
         crosshairText: "#0c0d11",
-        targetLine: "#6fbf9a",
-        invalidLine: "#d36a6a",
-        sessAsian: "rgba(122, 155, 184, 0.05)",
-        sessLondon: "rgba(196, 163, 90, 0.06)",
-        sessNy: "rgba(111, 191, 154, 0.06)",
+        targetLine: "#10b981",
+        invalidLine: "#f43f5e",
+        sessAsian: "rgba(56, 189, 248, 0.04)",
+        sessLondon: "rgba(196, 163, 90, 0.05)",
+        sessNy: "rgba(16, 185, 129, 0.05)",
+        sessText: "#38bdf8",
       };
     }
   }
@@ -107,12 +126,13 @@ export class DeskChart {
       (e) => {
         e.preventDefault();
         const dir = e.deltaY > 0 ? 1.12 : 0.88;
-        const mid = this.hover?.i ?? this.view.end - this.view.count / 2;
+        const mid = this.hover?.slot ?? this.view.count / 2;
+        const targetSlot = this.view.end - this.view.count + mid;
         this.view.count = Math.round(
-          clamp(this.view.count * dir, 20, Math.min(400, this.bars.length))
+          clamp(this.view.count * dir, 24, Math.min(300, this.bars.length))
         );
         this.view.end = clamp(
-          Math.round(mid + this.view.count / 2),
+          Math.round(targetSlot + this.view.count / 2),
           this.view.count,
           this.bars.length
         );
@@ -136,8 +156,8 @@ export class DeskChart {
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       if (this.drag) {
-        const w = this.inner().w;
-        const px = w / this.view.count;
+        const inn = this.inner();
+        const px = inn.w / this.view.count;
         const dx = Math.round((this.drag.x - e.clientX) / Math.max(px, 1));
         this.view.end = clamp(this.drag.end + dx, this.view.count, this.bars.length);
       }
@@ -158,7 +178,7 @@ export class DeskChart {
     if (!opts.preserve || tfChanged || !prevCount) {
       this.view.end = bars.length;
       this.view.count =
-        this.tf === "M15" ? 96 : this.tf === "H1" ? 90 : this.tf === "H4" ? 80 : this.tf === "D1" ? 120 : 64;
+        this.tf === "M15" ? 80 : this.tf === "H1" ? 75 : this.tf === "H4" ? 65 : this.tf === "D1" ? 90 : 52;
       this.view.count = Math.min(this.view.count, bars.length);
       if (!opts.soft) this.resize();
       else this.draw();
@@ -173,8 +193,9 @@ export class DeskChart {
     const parent = this.canvas.parentElement;
     if (!parent) return;
     const w = parent.clientWidth || 800;
-    const h = parent.clientHeight || 450;
+    const h = parent.clientHeight || 500;
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+
     for (const c of [this.canvas, this.overlay]) {
       c.width = Math.round(w * this.dpr);
       c.height = Math.round(h * this.dpr);
@@ -213,7 +234,7 @@ export class DeskChart {
       if (b.l < min) min = b.l;
       if (b.h > max) max = b.h;
     }
-    const pad = Math.max((max - min) * 0.08, 0.0006);
+    const pad = Math.max((max - min) * 0.12, 0.0008);
     min -= pad;
     max += pad;
     return { min, max, span: Math.max(max - min, 0.0010) };
@@ -262,29 +283,48 @@ export class DeskChart {
     const mm = this.minMax(bars);
     const m = this.coordMapper(inn, mm, bars.length);
 
-    this.drawGrid(ctx, inn, mm, m, bars, pal);
+    // 1) Background & Sessions
     if (this.overlays.sessions && (this.tf === "M15" || this.tf === "H1")) {
       this.drawSessions(ctx, inn, m, bars, start, pal);
     }
+
+    // 2) Grid & Price Scale
+    this.drawGrid(ctx, inn, mm, m, bars, pal);
+
+    // 3) Dealing Range (EQ & OTE)
     if (this.overlays.eq && this.analysis) {
       this.drawDealingRange(ctx, inn, m, mm, pal);
     }
-    if (this.overlays.fvg && this.analysis) {
-      this.drawFVGs(ctx, inn, m, start, end, bars, pal);
-    }
+
+    // 4) Order Blocks (Clean localized boxes)
     if (this.overlays.ob && this.analysis) {
       this.drawOBs(ctx, inn, m, start, end, bars, pal);
     }
+
+    // 5) FVGs (Clean clipped boxes)
+    if (this.overlays.fvg && this.analysis) {
+      this.drawFVGs(ctx, inn, m, start, end, bars, pal);
+    }
+
+    // 6) Key Liquidity Lines
     if (this.overlays.liq && this.analysis) {
       this.drawLiquidity(ctx, inn, m, mm, bars, pal);
     }
+
+    // 7) Candlesticks (Crisp high-DPI bodies & wicks)
     this.drawCandles(ctx, inn, m, bars, pal);
+
+    // 8) Timeframe Predictions
     if (this.overlays.pred && this.analysis?.predictions?.byTF?.[this.tf]) {
-      this.drawTFPrediction(ctx, inn, m, mm, pal);
+      this.drawTFPrediction(ctx, inn, m, mm, pal, bars.length);
     }
+
+    // 9) Trade Setup (Right-aligned lines & badges)
     if (this.overlays.setup && this.analysis?.execution) {
-      this.drawSetup(ctx, inn, m, mm, pal);
+      this.drawSetup(ctx, inn, m, mm, pal, bars.length);
     }
+
+    // 10) Interactive Crosshair
     this.drawCrosshair(octx, inn, m, mm, pal);
   }
 
@@ -292,7 +332,7 @@ export class DeskChart {
     ctx.save();
     ctx.strokeStyle = pal.grid;
     ctx.lineWidth = 1;
-    ctx.fillStyle = pal.text;
+    ctx.fillStyle = pal.gridText;
     ctx.font = "10px 'IBM Plex Mono', monospace";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
@@ -312,9 +352,10 @@ export class DeskChart {
       ctx.fillText(fmt(p, 5), inn.x + inn.w + 6, y);
     }
 
+    // Time axis
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    const xStep = Math.max(1, Math.floor(bars.length / 7));
+    const xStep = Math.max(1, Math.floor(bars.length / 6));
     for (let i = 0; i < bars.length; i += xStep) {
       const b = bars[i];
       const x = Math.round(m.xOf(i));
@@ -335,20 +376,42 @@ export class DeskChart {
 
   drawSessions(ctx, inn, m, bars, start, pal) {
     ctx.save();
-    for (let i = 0; i < bars.length; i++) {
+    let currentSession = null;
+    let sessStart = 0;
+
+    for (let i = 0; i <= bars.length; i++) {
       const b = bars[i];
-      const { hour, minute } = nyParts(b.t);
-      const t = hour + minute / 60;
+      let sess = null;
+      if (b) {
+        const { hour, minute } = nyParts(b.t);
+        const t = hour + minute / 60;
+        if (t >= 20 || t < 0) sess = "ASIAN";
+        else if (t >= 2 && t < 5) sess = "LONDON";
+        else if (t >= 7 && t < 10) sess = "NY_AM";
+      }
 
-      let color = null;
-      if (t >= 20 || t < 0) color = pal.sessAsian;
-      else if (t >= 2 && t < 5) color = pal.sessLondon;
-      else if (t >= 7 && t < 10) color = pal.sessNy;
+      if (sess !== currentSession) {
+        if (currentSession && i > sessStart) {
+          const x1 = m.xOf(sessStart) - m.step / 2;
+          const x2 = m.xOf(i - 1) + m.step / 2;
+          const col =
+            currentSession === "ASIAN"
+              ? pal.sessAsian
+              : currentSession === "LONDON"
+                ? pal.sessLondon
+                : pal.sessNy;
+          ctx.fillStyle = col;
+          ctx.fillRect(x1, inn.y, x2 - x1, inn.h);
 
-      if (color) {
-        const x1 = m.xOf(i) - m.step / 2;
-        ctx.fillStyle = color;
-        ctx.fillRect(x1, inn.y, m.step, inn.h);
+          // Small session label
+          ctx.fillStyle = pal.sessText;
+          ctx.font = "9px 'IBM Plex Mono', monospace";
+          ctx.textAlign = "left";
+          const label = currentSession === "ASIAN" ? "ASIAN" : currentSession === "LONDON" ? "LONDON KZ" : "NY AM";
+          ctx.fillText(label, x1 + 4, inn.y + 12);
+        }
+        currentSession = sess;
+        sessStart = i;
       }
     }
     ctx.restore();
@@ -362,53 +425,52 @@ export class DeskChart {
     const yEq = m.yOf(eq);
 
     ctx.save();
-    ctx.strokeStyle = pal.eqLine;
-    ctx.setLineDash([4, 4]);
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(inn.x, yEq);
-    ctx.lineTo(inn.x + inn.w, yEq);
-    ctx.stroke();
+    if (yEq >= inn.y && yEq <= inn.y + inn.h) {
+      ctx.strokeStyle = pal.eqLine;
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(inn.x, yEq);
+      ctx.lineTo(inn.x + inn.w, yEq);
+      ctx.stroke();
 
-    ctx.fillStyle = pal.eqText;
-    ctx.font = "9px 'IBM Plex Mono', monospace";
-    ctx.textAlign = "left";
-    ctx.fillText(`EQ ${fmt(eq, 5)}`, inn.x + 8, yEq - 4);
-
-    if (range.oteBuy?.length >= 3) {
-      const topBuy = m.yOf(range.oteBuy[0]);
-      const botBuy = m.yOf(range.oteBuy[2]);
-      ctx.fillStyle = pal.oteShade;
-      ctx.fillRect(inn.x, topBuy, inn.w, Math.max(botBuy - topBuy, 2));
+      ctx.fillStyle = pal.eqText;
+      ctx.font = "9px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText(`EQ ${fmt(eq, 5)}`, inn.x + 8, yEq - 4);
     }
     ctx.restore();
   }
 
   drawFVGs(ctx, inn, m, start, end, bars, pal) {
-    const gaps = this.analysis?.frames?.[this.tf]?.gaps || [];
+    const allGaps = this.analysis?.frames?.[this.tf]?.gaps || [];
+    // Only take top 4 most recent / relevant gaps
+    const gaps = allGaps.slice(-8);
     ctx.save();
 
     for (const g of gaps) {
       if (g.i + 2 < start || g.i > end) continue;
-      const x1 = Math.max(inn.x, m.xOf(Math.max(0, g.i - start)));
-      const x2 = inn.x + inn.w;
+      const slot = g.i - start;
+      const x1 = Math.max(inn.x, m.xOf(Math.max(0, slot)));
+      // Extend FVG for 12 bars forward or to right edge if recent
+      const endSlot = Math.min(bars.length - 1, slot + 14);
+      const x2 = Math.min(inn.x + inn.w, m.xOf(endSlot) + m.step);
+
       const yTop = m.yOf(g.top);
       const yBot = m.yOf(g.bot);
       const yCe = m.yOf(g.ce);
-      const height = Math.max(yBot - yTop, 1);
+      const height = Math.max(yBot - yTop, 2);
 
-      if (g.type === "BULL") {
-        ctx.fillStyle = g.inverted ? pal.bearFvg : pal.bullFvg;
-        ctx.strokeStyle = g.inverted ? pal.bearFvgBorder : pal.bullFvgBorder;
-      } else {
-        ctx.fillStyle = g.inverted ? pal.bullFvg : pal.bearFvg;
-        ctx.strokeStyle = g.inverted ? pal.bullFvgBorder : pal.bearFvgBorder;
-      }
+      const isBull = g.type === "BULL";
+      ctx.fillStyle = isBull ? pal.fvgBullFill : pal.fvgBearFill;
+      ctx.strokeStyle = isBull ? pal.fvgBullStroke : pal.fvgBearStroke;
+      ctx.lineWidth = 1;
 
       ctx.fillRect(x1, yTop, x2 - x1, height);
       ctx.strokeRect(x1, yTop, x2 - x1, height);
 
-      ctx.setLineDash([2, 3]);
+      // Consequent Encroachment (50% CE)
+      ctx.setLineDash([2, 2]);
       ctx.beginPath();
       ctx.moveTo(x1, yCe);
       ctx.lineTo(x2, yCe);
@@ -419,24 +481,29 @@ export class DeskChart {
   }
 
   drawOBs(ctx, inn, m, start, end, bars, pal) {
-    const obs = this.analysis?.frames?.[this.tf]?.obs || [];
+    const allObs = this.analysis?.frames?.[this.tf]?.obs || [];
+    const obs = allObs.slice(-5);
     ctx.save();
 
     for (const ob of obs) {
-      if (ob.i < start - 20 || ob.i > end) continue;
-      const x1 = Math.max(inn.x, m.xOf(Math.max(0, ob.i - start)));
-      const x2 = inn.x + inn.w;
+      if (ob.i < start - 5 || ob.i > end) continue;
+      const slot = ob.i - start;
+      const x1 = Math.max(inn.x, m.xOf(Math.max(0, slot)));
+      const endSlot = Math.min(bars.length - 1, slot + 10);
+      const x2 = Math.min(inn.x + inn.w, m.xOf(endSlot) + m.step);
+
       const yTop = m.yOf(ob.top);
       const yBot = m.yOf(ob.bot);
-      const height = Math.max(yBot - yTop, 1);
+      const height = Math.max(yBot - yTop, 2);
 
+      const isBull = ob.type === "BULL";
       if (ob.breaker) {
-        ctx.fillStyle = ob.type === "BULL" ? pal.bearOb : pal.bullOb;
-        ctx.strokeStyle = ob.type === "BULL" ? pal.bearCandle : pal.bullCandle;
+        ctx.fillStyle = isBull ? pal.obBearFill : pal.obBullFill;
+        ctx.strokeStyle = isBull ? pal.bearCandle : pal.bullCandle;
         ctx.setLineDash([3, 2]);
       } else {
-        ctx.fillStyle = ob.type === "BULL" ? pal.bullOb : pal.bearOb;
-        ctx.strokeStyle = ob.type === "BULL" ? pal.bullObBorder : pal.bearObBorder;
+        ctx.fillStyle = isBull ? pal.obBullFill : pal.obBearFill;
+        ctx.strokeStyle = isBull ? pal.obBullStroke : pal.obBearStroke;
         ctx.setLineDash([]);
       }
 
@@ -459,116 +526,136 @@ export class DeskChart {
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
-      ctx.moveTo(inn.x, y);
+      // Draw liquidity line only on the right half to avoid crossing all bars
+      const startX = inn.x + inn.w * 0.45;
+      ctx.moveTo(startX, y);
       ctx.lineTo(inn.x + inn.w, y);
       ctx.stroke();
 
       ctx.fillStyle = ext.side === "BSL" ? pal.bearCandle : pal.bullCandle;
       ctx.font = "9px 'IBM Plex Mono', monospace";
       ctx.textAlign = "right";
-      ctx.fillText(`${ext.id} · ${fmt(ext.price, 5)}`, inn.x + inn.w - 8, y - 3);
+      ctx.fillText(`${ext.id} · ${fmt(ext.price, 5)}`, inn.x + inn.w - 6, y - 3);
     }
     ctx.restore();
   }
 
-  drawTFPrediction(ctx, inn, m, mm, pal) {
+  drawTFPrediction(ctx, inn, m, mm, pal, barCount) {
     const pred = this.analysis?.predictions?.byTF?.[this.tf];
     if (!pred || !pred.target) return;
 
     ctx.save();
+    const startX = inn.x + inn.w * 0.6;
+    const endX = inn.x + inn.w;
     const yTarget = m.yOf(pred.target);
     const yInvalid = m.yOf(pred.invalid);
 
     if (yTarget >= inn.y && yTarget <= inn.y + inn.h) {
       ctx.strokeStyle = pred.direction === "UP" ? pal.targetLine : pal.invalidLine;
-      ctx.lineWidth = 1.6;
-      ctx.setLineDash([6, 4]);
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([5, 3]);
       ctx.beginPath();
-      ctx.moveTo(inn.x, yTarget);
-      ctx.lineTo(inn.x + inn.w, yTarget);
+      ctx.moveTo(startX, yTarget);
+      ctx.lineTo(endX, yTarget);
       ctx.stroke();
 
       ctx.fillStyle = pred.direction === "UP" ? pal.targetLine : pal.invalidLine;
       ctx.font = "10px 'IBM Plex Mono', monospace";
       ctx.textAlign = "right";
-      ctx.fillText(`${this.tf} TARGET: ${fmt(pred.target, 5)} (${pred.targetPips}p)`, inn.x + inn.w - 8, yTarget - 4);
+      ctx.fillText(`TARGET: ${fmt(pred.target, 5)} (+${pred.targetPips}p)`, endX - 6, yTarget - 4);
     }
 
     if (yInvalid >= inn.y && yInvalid <= inn.y + inn.h) {
       ctx.strokeStyle = pal.invalidLine;
-      ctx.lineWidth = 1.2;
-      ctx.setLineDash([2, 4]);
+      ctx.lineWidth = 1.1;
+      ctx.setLineDash([2, 3]);
       ctx.beginPath();
-      ctx.moveTo(inn.x, yInvalid);
-      ctx.lineTo(inn.x + inn.w, yInvalid);
+      ctx.moveTo(startX, yInvalid);
+      ctx.lineTo(endX, yInvalid);
       ctx.stroke();
 
       ctx.fillStyle = pal.invalidLine;
       ctx.font = "9px 'IBM Plex Mono', monospace";
       ctx.textAlign = "right";
-      ctx.fillText(`${this.tf} INVALID: ${fmt(pred.invalid, 5)}`, inn.x + inn.w - 8, yInvalid + 10);
+      ctx.fillText(`INVALID: ${fmt(pred.invalid, 5)}`, endX - 6, yInvalid + 10);
     }
-
     ctx.restore();
   }
 
   drawCandles(ctx, inn, m, bars, pal) {
     ctx.save();
-    const halfW = Math.max(1, Math.min(8, (m.step * 0.72) / 2));
+    const halfW = Math.max(1.5, Math.min(6, (m.step * 0.72) / 2));
 
     for (let i = 0; i < bars.length; i++) {
       const b = bars[i];
       const x = Math.round(m.xOf(i));
-      const yO = m.yOf(b.o);
-      const yC = m.yOf(b.c);
-      const yH = m.yOf(b.h);
-      const yL = m.yOf(b.l);
+      const yO = Math.round(m.yOf(b.o));
+      const yC = Math.round(m.yOf(b.c));
+      const yH = Math.round(m.yOf(b.h));
+      const yL = Math.round(m.yOf(b.l));
       const bull = b.c >= b.o;
 
+      // Wick
       ctx.strokeStyle = bull ? pal.bullCandle : pal.bearCandle;
-      ctx.lineWidth = 1.1;
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.moveTo(x, yH);
       ctx.lineTo(x, yL);
       ctx.stroke();
 
+      // Body
       const top = Math.min(yO, yC);
-      const height = Math.max(Math.abs(yC - yO), 1);
-      ctx.fillStyle = bull ? pal.bullCandle : pal.bearCandle;
-      ctx.fillRect(x - halfW, top, halfW * 2, height);
+      const height = Math.max(Math.abs(yC - yO), 1.5);
+      ctx.fillStyle = bull ? pal.bullBody : pal.bearBody;
+      ctx.fillRect(Math.round(x - halfW), top, Math.round(halfW * 2), height);
     }
     ctx.restore();
   }
 
-  drawSetup(ctx, inn, m, mm, pal) {
+  drawSetup(ctx, inn, m, mm, pal, barCount) {
     const ex = this.analysis.execution;
     if (!ex || !ex.entry) return;
 
     ctx.save();
+    const startX = inn.x + inn.w * 0.75;
+    const endX = inn.x + inn.w;
+
     const yEntry = m.yOf(ex.entry);
     const ySl = m.yOf(ex.sl);
     const yTp = m.yOf(ex.t1);
 
-    ctx.strokeStyle = pal.eqText;
-    ctx.lineWidth = 1.4;
-    ctx.setLineDash([5, 3]);
-    ctx.beginPath();
-    ctx.moveTo(inn.x, yEntry);
-    ctx.lineTo(inn.x + inn.w, yEntry);
-    ctx.stroke();
+    // Entry line
+    if (yEntry >= inn.y && yEntry <= inn.y + inn.h) {
+      ctx.strokeStyle = pal.eqText;
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([4, 2]);
+      ctx.beginPath();
+      ctx.moveTo(startX, yEntry);
+      ctx.lineTo(endX, yEntry);
+      ctx.stroke();
+    }
 
-    ctx.strokeStyle = pal.invalidLine;
-    ctx.beginPath();
-    ctx.moveTo(inn.x, ySl);
-    ctx.lineTo(inn.x + inn.w, ySl);
-    ctx.stroke();
+    // Stop loss line
+    if (ySl >= inn.y && ySl <= inn.y + inn.h) {
+      ctx.strokeStyle = pal.invalidLine;
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([3, 2]);
+      ctx.beginPath();
+      ctx.moveTo(startX, ySl);
+      ctx.lineTo(endX, ySl);
+      ctx.stroke();
+    }
 
-    ctx.strokeStyle = pal.targetLine;
-    ctx.beginPath();
-    ctx.moveTo(inn.x, yTp);
-    ctx.lineTo(inn.x + inn.w, yTp);
-    ctx.stroke();
-
+    // Take profit line
+    if (yTp >= inn.y && yTp <= inn.y + inn.h) {
+      ctx.strokeStyle = pal.targetLine;
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([3, 2]);
+      ctx.beginPath();
+      ctx.moveTo(startX, yTp);
+      ctx.lineTo(endX, yTp);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -588,7 +675,7 @@ export class DeskChart {
 
     ctx.beginPath();
     ctx.moveTo(inn.x, y);
-    ctx.lineTo(inn.x + inn.w, y);
+    ctx.lineTo(inn.x + inn.w);
     ctx.stroke();
 
     ctx.fillStyle = pal.crosshairBadge;
