@@ -8,10 +8,12 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 const PIP = MARKET_META.pip; // 0.0001
+const THEME_KEY = "ipda-theme-eurusd";
 
 const state = {
   tf: "H1",
   predTf: "H1",
+  theme: "dark",
   market: null,
   analysis: null,
   chart: null,
@@ -53,6 +55,44 @@ function setFeedStatus(stateName, detail) {
   if (!el) return;
   el.dataset.state = stateName;
   el.textContent = detail || stateName;
+}
+
+/* =========================================================================
+   LIGHT / DARK THEME MANAGER
+   ========================================================================= */
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === "light" || saved === "dark") {
+    state.theme = saved;
+  } else {
+    state.theme = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+  applyTheme(state.theme);
+}
+
+function applyTheme(t) {
+  state.theme = t;
+  document.documentElement.setAttribute("data-theme", t);
+  localStorage.setItem(THEME_KEY, t);
+
+  const label = $("#themeLabel");
+  if (label) {
+    label.textContent = t === "light" ? "DARK" : "LIGHT";
+  }
+  const btn = $("#themeToggle");
+  if (btn) {
+    btn.setAttribute("title", `Switch to ${t === "light" ? "Dark" : "Light"} Mode (Shortcut: T)`);
+  }
+
+  if (state.chart) {
+    state.chart.draw();
+  }
+}
+
+function toggleTheme() {
+  const next = state.theme === "light" ? "dark" : "light";
+  applyTheme(next);
 }
 
 function renderClock() {
@@ -255,7 +295,6 @@ function renderSetups(setups) {
 function renderPredictions(p) {
   if (!p?.byTF) return;
 
-  // Render Timeframe tabs on prediction panel
   const tabsContainer = $("#predTabs");
   const activeTf = state.predTf || "H1";
 
@@ -278,7 +317,6 @@ function renderPredictions(p) {
     });
   }
 
-  // Render Active Featured Timeframe Card
   const active = p.byTF[activeTf] || p.byTF.H1;
   const featuredBox = $("#predFeatured");
   if (featuredBox && active) {
@@ -346,7 +384,6 @@ function renderPredictions(p) {
       </article>`;
   }
 
-  // Render Multi-Timeframe Prediction Matrix Table
   const matrix = $("#predMatrix");
   if (matrix) {
     const tfs = ["M15", "H1", "H4", "D1", "W1"];
@@ -387,7 +424,6 @@ function renderPredictions(p) {
         </table>
       </div>`;
 
-    // Row click handler to switch active featured card
     $$("#predMatrix tr[data-ptf]").forEach((row) => {
       row.addEventListener("click", () => {
         state.predTf = row.dataset.ptf;
@@ -396,7 +432,6 @@ function renderPredictions(p) {
     });
   }
 
-  // Render Scenarios
   const sc = $("#scenarios");
   if (sc && p.scenarios) {
     sc.innerHTML = p.scenarios
@@ -514,13 +549,16 @@ function rescan() {
 }
 
 function initUI() {
+  // Theme toggle button
+  $("#themeToggle")?.addEventListener("click", toggleTheme);
+
   // Timeframe buttons on toolbar
   $$(".toolbar .tf button").forEach((btn) => {
     btn.addEventListener("click", () => {
       $$(".toolbar .tf button").forEach((b) => b.classList.remove("on"));
       btn.classList.add("on");
       state.tf = btn.dataset.tf;
-      state.predTf = btn.dataset.tf; // keep prediction tab in sync
+      state.predTf = btn.dataset.tf;
       state.chart.setData(state.market.frames[state.tf], state.analysis, state.tf);
       renderPredictions(state.analysis.predictions);
     });
@@ -568,6 +606,7 @@ function initUI() {
     if (key === "3") switchTF("H4");
     if (key === "4") switchTF("D1");
     if (key === "5") switchTF("W1");
+    if (key.toLowerCase() === "t") toggleTheme();
     if (key.toLowerCase() === "r") rescan();
   });
 
@@ -585,6 +624,7 @@ function switchTF(tf) {
 }
 
 async function boot() {
+  initTheme();
   state.market = getMarket();
   state.analysis = analyze(state.market);
 

@@ -41,6 +41,65 @@ export class DeskChart {
     this.bind();
   }
 
+  getThemeColors() {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if (isLight) {
+      return {
+        bg: "#ffffff",
+        grid: "rgba(160, 130, 60, 0.12)",
+        text: "#555e6d",
+        bullCandle: "#0d8a50",
+        bearCandle: "#d12c2c",
+        bullFvg: "rgba(13, 138, 80, 0.14)",
+        bullFvgBorder: "rgba(13, 138, 80, 0.6)",
+        bearFvg: "rgba(209, 44, 44, 0.14)",
+        bearFvgBorder: "rgba(209, 44, 44, 0.6)",
+        bullOb: "rgba(13, 138, 80, 0.12)",
+        bullObBorder: "rgba(13, 138, 80, 0.6)",
+        bearOb: "rgba(209, 44, 44, 0.12)",
+        bearObBorder: "rgba(209, 44, 44, 0.6)",
+        eqLine: "rgba(158, 122, 43, 0.8)",
+        eqText: "#9e7a2b",
+        oteShade: "rgba(13, 138, 80, 0.08)",
+        crosshair: "rgba(160, 130, 60, 0.5)",
+        crosshairBadge: "#1a1f2c",
+        crosshairText: "#ffffff",
+        targetLine: "#0d8a50",
+        invalidLine: "#d12c2c",
+        sessAsian: "rgba(27, 109, 165, 0.06)",
+        sessLondon: "rgba(158, 122, 43, 0.08)",
+        sessNy: "rgba(13, 138, 80, 0.08)",
+      };
+    } else {
+      return {
+        bg: "#0c0d11",
+        grid: "rgba(196, 163, 90, 0.08)",
+        text: "#8a8478",
+        bullCandle: "#6fbf9a",
+        bearCandle: "#d36a6a",
+        bullFvg: "rgba(111, 191, 154, 0.14)",
+        bullFvgBorder: "rgba(111, 191, 154, 0.5)",
+        bearFvg: "rgba(211, 106, 106, 0.14)",
+        bearFvgBorder: "rgba(211, 106, 106, 0.5)",
+        bullOb: "rgba(111, 191, 154, 0.12)",
+        bullObBorder: "rgba(111, 191, 154, 0.5)",
+        bearOb: "rgba(211, 106, 106, 0.12)",
+        bearObBorder: "rgba(211, 106, 106, 0.5)",
+        eqLine: "rgba(196, 163, 90, 0.6)",
+        eqText: "#c4a35a",
+        oteShade: "rgba(111, 191, 154, 0.07)",
+        crosshair: "rgba(196, 163, 90, 0.4)",
+        crosshairBadge: "#c4a35a",
+        crosshairText: "#0c0d11",
+        targetLine: "#6fbf9a",
+        invalidLine: "#d36a6a",
+        sessAsian: "rgba(122, 155, 184, 0.05)",
+        sessLondon: "rgba(196, 163, 90, 0.06)",
+        sessNy: "rgba(111, 191, 154, 0.06)",
+      };
+    }
+  }
+
   bind() {
     const ov = this.overlay;
     ov.addEventListener(
@@ -192,6 +251,8 @@ export class DeskChart {
     const ctx = this.ctx;
     const octx = this.octx;
     const inn = this.inner();
+    const pal = this.getThemeColors();
+
     ctx.clearRect(0, 0, inn.W, inn.H);
     octx.clearRect(0, 0, inn.W, inn.H);
 
@@ -201,37 +262,37 @@ export class DeskChart {
     const mm = this.minMax(bars);
     const m = this.coordMapper(inn, mm, bars.length);
 
-    this.drawGrid(ctx, inn, mm, m, bars);
+    this.drawGrid(ctx, inn, mm, m, bars, pal);
     if (this.overlays.sessions && (this.tf === "M15" || this.tf === "H1")) {
-      this.drawSessions(ctx, inn, m, bars, start);
+      this.drawSessions(ctx, inn, m, bars, start, pal);
     }
     if (this.overlays.eq && this.analysis) {
-      this.drawDealingRange(ctx, inn, m, mm);
+      this.drawDealingRange(ctx, inn, m, mm, pal);
     }
     if (this.overlays.fvg && this.analysis) {
-      this.drawFVGs(ctx, inn, m, start, end, bars);
+      this.drawFVGs(ctx, inn, m, start, end, bars, pal);
     }
     if (this.overlays.ob && this.analysis) {
-      this.drawOBs(ctx, inn, m, start, end, bars);
+      this.drawOBs(ctx, inn, m, start, end, bars, pal);
     }
     if (this.overlays.liq && this.analysis) {
-      this.drawLiquidity(ctx, inn, m, mm, bars);
+      this.drawLiquidity(ctx, inn, m, mm, bars, pal);
     }
-    this.drawCandles(ctx, inn, m, bars);
+    this.drawCandles(ctx, inn, m, bars, pal);
     if (this.overlays.pred && this.analysis?.predictions?.byTF?.[this.tf]) {
-      this.drawTFPrediction(ctx, inn, m, mm);
+      this.drawTFPrediction(ctx, inn, m, mm, pal);
     }
     if (this.overlays.setup && this.analysis?.execution) {
-      this.drawSetup(ctx, inn, m, mm);
+      this.drawSetup(ctx, inn, m, mm, pal);
     }
-    this.drawCrosshair(octx, inn, m, mm);
+    this.drawCrosshair(octx, inn, m, mm, pal);
   }
 
-  drawGrid(ctx, inn, mm, m, bars) {
+  drawGrid(ctx, inn, mm, m, bars, pal) {
     ctx.save();
-    ctx.strokeStyle = "rgba(196, 163, 90, 0.08)";
+    ctx.strokeStyle = pal.grid;
     ctx.lineWidth = 1;
-    ctx.fillStyle = "#8a8478";
+    ctx.fillStyle = pal.text;
     ctx.font = "10px 'IBM Plex Mono', monospace";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
@@ -272,7 +333,7 @@ export class DeskChart {
     ctx.restore();
   }
 
-  drawSessions(ctx, inn, m, bars, start) {
+  drawSessions(ctx, inn, m, bars, start, pal) {
     ctx.save();
     for (let i = 0; i < bars.length; i++) {
       const b = bars[i];
@@ -280,9 +341,9 @@ export class DeskChart {
       const t = hour + minute / 60;
 
       let color = null;
-      if (t >= 20 || t < 0) color = "rgba(122, 155, 184, 0.05)"; // Asian Range
-      else if (t >= 2 && t < 5) color = "rgba(196, 163, 90, 0.06)"; // London Kill Zone
-      else if (t >= 7 && t < 10) color = "rgba(111, 191, 154, 0.06)"; // NY AM Kill Zone
+      if (t >= 20 || t < 0) color = pal.sessAsian;
+      else if (t >= 2 && t < 5) color = pal.sessLondon;
+      else if (t >= 7 && t < 10) color = pal.sessNy;
 
       if (color) {
         const x1 = m.xOf(i) - m.step / 2;
@@ -293,7 +354,7 @@ export class DeskChart {
     ctx.restore();
   }
 
-  drawDealingRange(ctx, inn, m, mm) {
+  drawDealingRange(ctx, inn, m, mm, pal) {
     const range = this.analysis?.dealing?.day || this.analysis?.dealing?.week;
     if (!range) return;
 
@@ -301,7 +362,7 @@ export class DeskChart {
     const yEq = m.yOf(eq);
 
     ctx.save();
-    ctx.strokeStyle = "rgba(196, 163, 90, 0.6)";
+    ctx.strokeStyle = pal.eqLine;
     ctx.setLineDash([4, 4]);
     ctx.lineWidth = 1.2;
     ctx.beginPath();
@@ -309,7 +370,7 @@ export class DeskChart {
     ctx.lineTo(inn.x + inn.w, yEq);
     ctx.stroke();
 
-    ctx.fillStyle = "#c4a35a";
+    ctx.fillStyle = pal.eqText;
     ctx.font = "9px 'IBM Plex Mono', monospace";
     ctx.textAlign = "left";
     ctx.fillText(`EQ ${fmt(eq, 5)}`, inn.x + 8, yEq - 4);
@@ -317,13 +378,13 @@ export class DeskChart {
     if (range.oteBuy?.length >= 3) {
       const topBuy = m.yOf(range.oteBuy[0]);
       const botBuy = m.yOf(range.oteBuy[2]);
-      ctx.fillStyle = "rgba(111, 191, 154, 0.07)";
+      ctx.fillStyle = pal.oteShade;
       ctx.fillRect(inn.x, topBuy, inn.w, Math.max(botBuy - topBuy, 2));
     }
     ctx.restore();
   }
 
-  drawFVGs(ctx, inn, m, start, end, bars) {
+  drawFVGs(ctx, inn, m, start, end, bars, pal) {
     const gaps = this.analysis?.frames?.[this.tf]?.gaps || [];
     ctx.save();
 
@@ -337,19 +398,11 @@ export class DeskChart {
       const height = Math.max(yBot - yTop, 1);
 
       if (g.type === "BULL") {
-        ctx.fillStyle = g.inverted
-          ? "rgba(211, 106, 106, 0.12)"
-          : g.virgin
-            ? "rgba(111, 191, 154, 0.22)"
-            : "rgba(111, 191, 154, 0.10)";
-        ctx.strokeStyle = g.inverted ? "rgba(211, 106, 106, 0.4)" : "rgba(111, 191, 154, 0.45)";
+        ctx.fillStyle = g.inverted ? pal.bearFvg : pal.bullFvg;
+        ctx.strokeStyle = g.inverted ? pal.bearFvgBorder : pal.bullFvgBorder;
       } else {
-        ctx.fillStyle = g.inverted
-          ? "rgba(111, 191, 154, 0.12)"
-          : g.virgin
-            ? "rgba(211, 106, 106, 0.22)"
-            : "rgba(211, 106, 106, 0.10)";
-        ctx.strokeStyle = g.inverted ? "rgba(111, 191, 154, 0.4)" : "rgba(211, 106, 106, 0.45)";
+        ctx.fillStyle = g.inverted ? pal.bullFvg : pal.bearFvg;
+        ctx.strokeStyle = g.inverted ? pal.bullFvgBorder : pal.bearFvgBorder;
       }
 
       ctx.fillRect(x1, yTop, x2 - x1, height);
@@ -365,7 +418,7 @@ export class DeskChart {
     ctx.restore();
   }
 
-  drawOBs(ctx, inn, m, start, end, bars) {
+  drawOBs(ctx, inn, m, start, end, bars, pal) {
     const obs = this.analysis?.frames?.[this.tf]?.obs || [];
     ctx.save();
 
@@ -378,12 +431,12 @@ export class DeskChart {
       const height = Math.max(yBot - yTop, 1);
 
       if (ob.breaker) {
-        ctx.fillStyle = ob.type === "BULL" ? "rgba(211, 106, 106, 0.15)" : "rgba(111, 191, 154, 0.15)";
-        ctx.strokeStyle = ob.type === "BULL" ? "#d36a6a" : "#6fbf9a";
+        ctx.fillStyle = ob.type === "BULL" ? pal.bearOb : pal.bullOb;
+        ctx.strokeStyle = ob.type === "BULL" ? pal.bearCandle : pal.bullCandle;
         ctx.setLineDash([3, 2]);
       } else {
-        ctx.fillStyle = ob.type === "BULL" ? "rgba(111, 191, 154, 0.12)" : "rgba(211, 106, 106, 0.12)";
-        ctx.strokeStyle = ob.type === "BULL" ? "rgba(111, 191, 154, 0.5)" : "rgba(211, 106, 106, 0.5)";
+        ctx.fillStyle = ob.type === "BULL" ? pal.bullOb : pal.bearOb;
+        ctx.strokeStyle = ob.type === "BULL" ? pal.bullObBorder : pal.bearObBorder;
         ctx.setLineDash([]);
       }
 
@@ -393,7 +446,7 @@ export class DeskChart {
     ctx.restore();
   }
 
-  drawLiquidity(ctx, inn, m, mm, bars) {
+  drawLiquidity(ctx, inn, m, mm, bars, pal) {
     const liq = this.analysis?.frames?.[this.tf]?.liq;
     if (!liq) return;
     ctx.save();
@@ -402,7 +455,7 @@ export class DeskChart {
       const y = Math.round(m.yOf(ext.price));
       if (y < inn.y || y > inn.y + inn.h) continue;
 
-      ctx.strokeStyle = ext.side === "BSL" ? "rgba(211, 106, 106, 0.75)" : "rgba(111, 191, 154, 0.75)";
+      ctx.strokeStyle = ext.side === "BSL" ? pal.bearCandle : pal.bullCandle;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
@@ -410,7 +463,7 @@ export class DeskChart {
       ctx.lineTo(inn.x + inn.w, y);
       ctx.stroke();
 
-      ctx.fillStyle = ext.side === "BSL" ? "#d36a6a" : "#6fbf9a";
+      ctx.fillStyle = ext.side === "BSL" ? pal.bearCandle : pal.bullCandle;
       ctx.font = "9px 'IBM Plex Mono', monospace";
       ctx.textAlign = "right";
       ctx.fillText(`${ext.id} · ${fmt(ext.price, 5)}`, inn.x + inn.w - 8, y - 3);
@@ -418,7 +471,7 @@ export class DeskChart {
     ctx.restore();
   }
 
-  drawTFPrediction(ctx, inn, m, mm) {
+  drawTFPrediction(ctx, inn, m, mm, pal) {
     const pred = this.analysis?.predictions?.byTF?.[this.tf];
     if (!pred || !pred.target) return;
 
@@ -427,8 +480,7 @@ export class DeskChart {
     const yInvalid = m.yOf(pred.invalid);
 
     if (yTarget >= inn.y && yTarget <= inn.y + inn.h) {
-      // Prediction Target Line
-      ctx.strokeStyle = pred.direction === "UP" ? "#6fbf9a" : "#d36a6a";
+      ctx.strokeStyle = pred.direction === "UP" ? pal.targetLine : pal.invalidLine;
       ctx.lineWidth = 1.6;
       ctx.setLineDash([6, 4]);
       ctx.beginPath();
@@ -436,15 +488,14 @@ export class DeskChart {
       ctx.lineTo(inn.x + inn.w, yTarget);
       ctx.stroke();
 
-      ctx.fillStyle = pred.direction === "UP" ? "#6fbf9a" : "#d36a6a";
+      ctx.fillStyle = pred.direction === "UP" ? pal.targetLine : pal.invalidLine;
       ctx.font = "10px 'IBM Plex Mono', monospace";
       ctx.textAlign = "right";
       ctx.fillText(`${this.tf} TARGET: ${fmt(pred.target, 5)} (${pred.targetPips}p)`, inn.x + inn.w - 8, yTarget - 4);
     }
 
     if (yInvalid >= inn.y && yInvalid <= inn.y + inn.h) {
-      // Invalidation Line
-      ctx.strokeStyle = "rgba(211, 106, 106, 0.85)";
+      ctx.strokeStyle = pal.invalidLine;
       ctx.lineWidth = 1.2;
       ctx.setLineDash([2, 4]);
       ctx.beginPath();
@@ -452,7 +503,7 @@ export class DeskChart {
       ctx.lineTo(inn.x + inn.w, yInvalid);
       ctx.stroke();
 
-      ctx.fillStyle = "#d36a6a";
+      ctx.fillStyle = pal.invalidLine;
       ctx.font = "9px 'IBM Plex Mono', monospace";
       ctx.textAlign = "right";
       ctx.fillText(`${this.tf} INVALID: ${fmt(pred.invalid, 5)}`, inn.x + inn.w - 8, yInvalid + 10);
@@ -461,7 +512,7 @@ export class DeskChart {
     ctx.restore();
   }
 
-  drawCandles(ctx, inn, m, bars) {
+  drawCandles(ctx, inn, m, bars, pal) {
     ctx.save();
     const halfW = Math.max(1, Math.min(8, (m.step * 0.72) / 2));
 
@@ -474,24 +525,22 @@ export class DeskChart {
       const yL = m.yOf(b.l);
       const bull = b.c >= b.o;
 
-      // Wick
-      ctx.strokeStyle = bull ? "#6fbf9a" : "#d36a6a";
+      ctx.strokeStyle = bull ? pal.bullCandle : pal.bearCandle;
       ctx.lineWidth = 1.1;
       ctx.beginPath();
       ctx.moveTo(x, yH);
       ctx.lineTo(x, yL);
       ctx.stroke();
 
-      // Body
       const top = Math.min(yO, yC);
       const height = Math.max(Math.abs(yC - yO), 1);
-      ctx.fillStyle = bull ? "#6fbf9a" : "#d36a6a";
+      ctx.fillStyle = bull ? pal.bullCandle : pal.bearCandle;
       ctx.fillRect(x - halfW, top, halfW * 2, height);
     }
     ctx.restore();
   }
 
-  drawSetup(ctx, inn, m, mm) {
+  drawSetup(ctx, inn, m, mm, pal) {
     const ex = this.analysis.execution;
     if (!ex || !ex.entry) return;
 
@@ -500,8 +549,7 @@ export class DeskChart {
     const ySl = m.yOf(ex.sl);
     const yTp = m.yOf(ex.t1);
 
-    // Entry line
-    ctx.strokeStyle = "#c4a35a";
+    ctx.strokeStyle = pal.eqText;
     ctx.lineWidth = 1.4;
     ctx.setLineDash([5, 3]);
     ctx.beginPath();
@@ -509,15 +557,13 @@ export class DeskChart {
     ctx.lineTo(inn.x + inn.w, yEntry);
     ctx.stroke();
 
-    // Stop Loss line
-    ctx.strokeStyle = "#d36a6a";
+    ctx.strokeStyle = pal.invalidLine;
     ctx.beginPath();
     ctx.moveTo(inn.x, ySl);
     ctx.lineTo(inn.x + inn.w, ySl);
     ctx.stroke();
 
-    // Take Profit line
-    ctx.strokeStyle = "#6fbf9a";
+    ctx.strokeStyle = pal.targetLine;
     ctx.beginPath();
     ctx.moveTo(inn.x, yTp);
     ctx.lineTo(inn.x + inn.w, yTp);
@@ -526,12 +572,12 @@ export class DeskChart {
     ctx.restore();
   }
 
-  drawCrosshair(ctx, inn, m, mm) {
+  drawCrosshair(ctx, inn, m, mm, pal) {
     if (!this.hover) return;
     const { x, y, price } = this.hover;
 
     ctx.save();
-    ctx.strokeStyle = "rgba(196, 163, 90, 0.4)";
+    ctx.strokeStyle = pal.crosshair;
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 3]);
 
@@ -545,9 +591,9 @@ export class DeskChart {
     ctx.lineTo(inn.x + inn.w, y);
     ctx.stroke();
 
-    ctx.fillStyle = "#c4a35a";
+    ctx.fillStyle = pal.crosshairBadge;
     ctx.fillRect(inn.x + inn.w + 2, y - 8, inn.r - 4, 16);
-    ctx.fillStyle = "#0c0d11";
+    ctx.fillStyle = pal.crosshairText;
     ctx.font = "10px 'IBM Plex Mono', monospace";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -10,24 +10,25 @@
   <link rel="stylesheet" href="css/app.css" />
   <style>
     .bt { max-width: 1180px; margin: 0 auto; padding: 28px 22px 80px; }
-    .bt a.back { color: var(--gold); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; text-decoration: none; }
+    .bt-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .bt a.back { color: var(--gold); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; text-decoration: none; font-weight: 500; }
     .bt h1 { font-family: "Cormorant Garamond", serif; font-size: 42px; font-weight: 500; margin: 10px 0 8px; }
-    .bt .lede { color: #c7c1b4; max-width: 760px; line-height: 1.6; margin-bottom: 28px; }
+    .bt .lede { color: var(--ink-soft); max-width: 760px; line-height: 1.6; margin-bottom: 28px; }
     .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 22px; }
-    .kpis article { padding: 14px; border: 1px solid var(--line); background: #111218; }
+    .kpis article { padding: 14px; border: 1px solid var(--line); background: var(--bg-2); }
     .kpis span { display: block; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
-    .kpis b { display: block; margin-top: 6px; font-family: "IBM Plex Mono", monospace; font-size: 22px; }
+    .kpis b { display: block; margin-top: 6px; font-family: "IBM Plex Mono", monospace; font-size: 22px; color: var(--ink); }
     .neg { color: var(--down); }
     .pos { color: var(--up); }
-    .panel { border: 1px solid var(--line); background: #111218; padding: 16px 18px; margin-bottom: 16px; }
+    .panel { border: 1px solid var(--line); background: var(--bg-2); padding: 16px 18px; margin-bottom: 16px; box-shadow: var(--shadow); }
     .panel h2 { font-family: "Cormorant Garamond", serif; font-size: 26px; font-weight: 500; margin-bottom: 10px; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid rgba(196,163,90,0.12); }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
     th { color: var(--mute); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; }
     td.mono { font-family: "IBM Plex Mono", monospace; }
-    #curve { width: 100%; height: 260px; display: block; background: #0c0d11; }
-    .warn { border-color: rgba(196,163,90,0.35); }
-    .spec { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; font-size: 13px; color: #c7c1b4; }
+    #curve { width: 100%; height: 260px; display: block; background: var(--bg-3); border-radius: 2px; }
+    .warn { border-color: var(--line); }
+    .spec { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; font-size: 13px; color: var(--ink-soft); }
     .spec b { color: var(--ink); font-weight: 500; }
     @media (max-width: 900px) { .kpis, .spec { grid-template-columns: 1fr 1fr; } }
   </style>
@@ -35,7 +36,27 @@
 <body>
   <div class="grain"></div>
   <main class="bt">
-    <a class="back" href="index.html">← Return to EUR/USD Desk</a>
+    <div class="bt-nav">
+      <a class="back" href="index.html">← Return to EUR/USD Desk</a>
+      <button type="button" id="themeToggle" class="theme-btn" aria-label="Toggle Light / Dark Mode" title="Toggle Light / Dark Mode (Shortcut: T)">
+        <svg class="icon-sun" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+        <span id="themeLabel">LIGHT</span>
+      </button>
+    </div>
+
     <h1>Three-Month EUR/USD Backtest</h1>
     <p class="lede">
       Walk-forward test of the desk's mechanical ICT 2022 / PO3 Judas execution rules on EUR/USD,
@@ -90,6 +111,28 @@
   </main>
 
   <script type="module">
+    const THEME_KEY = "ipda-theme-eurusd";
+    let currentTheme = localStorage.getItem(THEME_KEY) || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+
+    function applyTheme(t) {
+      currentTheme = t;
+      document.documentElement.setAttribute("data-theme", t);
+      localStorage.setItem(THEME_KEY, t);
+      const label = document.getElementById("themeLabel");
+      if (label) label.textContent = t === "light" ? "DARK" : "LIGHT";
+      drawCurve();
+    }
+
+    document.getElementById("themeToggle")?.addEventListener("click", () => {
+      applyTheme(currentTheme === "light" ? "dark" : "light");
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key.toLowerCase() === "t") applyTheme(currentTheme === "light" ? "dark" : "light");
+    });
+
+    applyTheme(currentTheme);
+
     const r = await fetch("backtest-results.json").then((x) => x.json());
     const money = (n) => (n < 0 ? "−" : "") + "$" + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const $ = (id) => document.getElementById(id);
@@ -143,41 +186,50 @@
         <td>${t.zone}</td>
         <td class='mono'>${Number(t.entry).toFixed(5)}</td>
         <td class='mono'>${Number(t.exit).toFixed(5)}</td>
-        <td class='mono'>${t.pips >= 0 ? "+" : ""}${t.pips}</td>
+        <td class='mono ${t.pips >= 0 ? "pos" : "neg"}'>${t.pips >= 0 ? "+" : ""}${t.pips}</td>
         <td class='mono ${t.pnl >= 0 ? "pos" : "neg"}'>${money(t.pnl)}</td>
         <td>${t.reason}</td>
       </tr>`;
     }).join("");
     $("blotter").innerHTML = "<tr><th>Open (UTC)</th><th>Side</th><th>Kill Zone</th><th>Entry</th><th>Exit</th><th>Pips</th><th>Net P&amp;L</th><th>Outcome</th></tr>" + blot;
 
-    // Canvas equity curve
-    const c = $("curve");
-    const dpr = Math.min(devicePixelRatio || 1, 2);
-    const w = c.clientWidth || 1000;
-    const h = 260;
-    c.width = w * dpr;
-    c.height = h * dpr;
-    const ctx = c.getContext("2d");
-    ctx.scale(dpr, dpr);
+    function drawCurve() {
+      const c = $("curve");
+      if (!c) return;
+      const isLight = document.documentElement.getAttribute("data-theme") === "light";
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      const w = c.clientWidth || 1000;
+      const h = 260;
+      c.width = w * dpr;
+      c.height = h * dpr;
+      const ctx = c.getContext("2d");
+      ctx.scale(dpr, dpr);
 
-    const pts = r.equityCurve;
-    const ys = pts.map((p) => p.eq);
-    const min = Math.min(...ys, r.spec.startEquity) * 0.98;
-    const max = Math.max(...ys, r.spec.startEquity) * 1.02;
-    const x = (i) => (i / Math.max(1, pts.length - 1)) * (w - 24) + 12;
-    const y = (v) => 14 + ((max - v) / (max - min)) * (h - 28);
+      ctx.fillStyle = isLight ? "#f4f6fa" : "#0c0d11";
+      ctx.fillRect(0, 0, w, h);
 
-    ctx.strokeStyle = "rgba(196,163,90,0.25)";
-    ctx.beginPath();
-    ctx.moveTo(12, y(r.spec.startEquity));
-    ctx.lineTo(w - 12, y(r.spec.startEquity));
-    ctx.stroke();
+      const pts = r.equityCurve;
+      const ys = pts.map((p) => p.eq);
+      const min = Math.min(...ys, r.spec.startEquity) * 0.98;
+      const max = Math.max(...ys, r.spec.startEquity) * 1.02;
+      const x = (i) => (i / Math.max(1, pts.length - 1)) * (w - 24) + 12;
+      const y = (v) => 14 + ((max - v) / (max - min)) * (h - 28);
 
-    ctx.strokeStyle = r.profit >= 0 ? "#6fbf9a" : "#d36a6a";
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    pts.forEach((p, i) => (i ? ctx.lineTo(x(i), y(p.eq)) : ctx.moveTo(x(i), y(p.eq))));
-    ctx.stroke();
+      ctx.strokeStyle = isLight ? "rgba(160,130,60,0.3)" : "rgba(196,163,90,0.25)";
+      ctx.beginPath();
+      ctx.moveTo(12, y(r.spec.startEquity));
+      ctx.lineTo(w - 12, y(r.spec.startEquity));
+      ctx.stroke();
+
+      ctx.strokeStyle = r.profit >= 0 ? (isLight ? "#0d8a50" : "#6fbf9a") : (isLight ? "#d12c2c" : "#d36a6a");
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      pts.forEach((p, i) => (i ? ctx.lineTo(x(i), y(p.eq)) : ctx.moveTo(x(i), y(p.eq))));
+      ctx.stroke();
+    }
+
+    drawCurve();
+    window.addEventListener("resize", drawCurve);
   </script>
 </body>
 </html>
