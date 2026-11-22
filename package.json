@@ -1,9 +1,10 @@
 {
   "name": "ipda-desk",
   "version": "1.0.0",
-  "description": "IPDA Desk — EUR/USD institutional ICT terminal",
+  "description": "IPDA Desk \u2014 EUR/USD institutional ICT terminal",
   "private": true,
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test tests/*.test.mjs"
   }
 }

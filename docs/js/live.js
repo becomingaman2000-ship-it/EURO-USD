@@ -1,328 +1,93 @@
-/* Real-time EUR/USD tape.
-   Prefers true FX (Kraken EUR/USD), then Binance EURUSDT.
-   Streams ticks over WebSocket and falls back to 2s REST polling. */
-
-const TF_MS = {
-  M15: 15 * 60 * 1000,
-  H1: 60 * 60 * 1000,
-  H4: 4 * 60 * 60 * 1000,
-  D1: 24 * 60 * 60 * 1000,
-  W1: 7 * 24 * 60 * 60 * 1000,
-};
-
-const BINANCE_TF = { M15: "15m", H1: "1h", H4: "4h", D1: "1d", W1: "1w" };
-const KRAKEN_TF = { M15: 15, H1: 60, H4: 240, D1: 1440, W1: 10080 };
-const BINANCE_HOSTS = [
-  "https://api.binance.com",
-  "https://data-api.binance.vision",
-  "https://api.binance.us",
-];
-
-function roundPx(v) {
-  return Math.round(v * 100000) / 100000;
+/* Complete single-venue books only. Binance is EUR/USDT, NOT broker EUR/USD. */
+import { TF_MS, bucketStart, normalizeBars, dataHealth } from './safety.js';
+const INTERVALS={M15:15,M30:30,H1:60,H4:240,D1:1440,W1:10080};
+const BINANCE_INTERVALS={M15:'15m',M30:'30m',H1:'1h',H4:'4h',D1:'1d',W1:'1w'};
+const BINANCE_HOSTS=['https://data-api.binance.vision','https://api.binance.com'];
+async function json(url,ms=8000){
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),ms);
+  try{const res=await fetch(url,{signal:ctrl.signal,cache:'no-store'});if(!res.ok)throw new Error(`HTTP ${res.status}`);return await res.json();}
+  finally{clearTimeout(timer);}
 }
-
-function validPx(v) {
-  return Number.isFinite(v) && v > 0.8 && v < 1.7;
+export async function getJSON(path,ms=8000){
+  const j=await json(`https://api.kraken.com/0/public/${path}`,ms);
+  if(j.error?.length)throw new Error(j.error.join(', '));
+  if(!j.result)throw new Error('Missing Kraken result');return j.result;
 }
-
-async function getJSON(url, ms = 7000) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  try {
-    const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
-    if (!res.ok) throw new Error(String(res.status));
-    return await res.json();
-  } finally {
-    clearTimeout(t);
+function checkBars(rows){const bars=normalizeBars(rows);if(bars.length<31)throw new Error('Insufficient venue history');return bars;}
+async function krakenCandles(pair,interval){
+  const result=await getJSON(`OHLC?pair=${pair}&interval=${interval}`);
+  const rows=result[Object.keys(result).find(k=>k!=='last')];
+  if(!Array.isArray(rows))throw new Error('Kraken history empty');
+  return checkBars(rows.map(r=>({t:+r[0]*1000,o:+r[1],h:+r[2],l:+r[3],c:+r[4],v:+r[6]})));
+}
+async function krakenQuote(){
+  const [ticker,trades]=await Promise.all([getJSON('Ticker?pair=EURUSD'),getJSON('Trades?pair=EURUSD&count=1')]);
+  const t=ticker[Object.keys(ticker)[0]],rows=trades[Object.keys(trades).find(k=>k!=='last')],trade=rows?.at(-1);
+  if(!t||!trade)throw new Error('Missing Kraken quote/trade');
+  return makeQuote(+t.b[0],+t.a[0],+trade[2]*1000);
+}
+function makeQuote(bid,ask,tradeAt){
+  if(!(Number.isFinite(bid)&&Number.isFinite(ask)&&bid>0&&ask>=bid&&Number.isFinite(tradeAt)))throw new Error('Invalid bid/ask or trade timestamp');
+  return {bid,ask,spot:(bid+ask)/2,tradeAt,quoteAt:Date.now()};
+}
+async function binanceCandles(host,interval){
+  const rows=await json(`${host}/api/v3/klines?symbol=EURUSDT&interval=${interval}&limit=720`);
+  if(!Array.isArray(rows))throw new Error(rows?.msg||'Binance history empty');
+  return checkBars(rows.map(r=>({t:+r[0],o:+r[1],h:+r[2],l:+r[3],c:+r[4],v:+r[5]})));
+}
+async function binanceQuote(host){
+  if(!BINANCE_HOSTS.includes(host))throw new Error('Unrecognized Binance endpoint');
+  const [t,trades]=await Promise.all([json(`${host}/api/v3/ticker/bookTicker?symbol=EURUSDT`),json(`${host}/api/v3/trades?symbol=EURUSDT&limit=1`)]);
+  if(!Array.isArray(trades)||!trades.length)throw new Error('Missing Binance trade');
+  return makeQuote(+t.bidPrice,+t.askPrice,+trades.at(-1).time);
+}
+async function buildBook(provider,host){
+  const proxy=provider==='BINANCE';
+  const pack=await Promise.all(Object.entries(INTERVALS).map(async([tf,i])=>[tf,proxy?await binanceCandles(host,BINANCE_INTERVALS[tf]):await krakenCandles('EURUSD',i)]));
+  const frames=Object.fromEntries(pack);
+  for(const [tf,bars]of Object.entries(frames))if(bars.filter(b=>b.t+TF_MS[tf]<=Date.now()).length<30)throw new Error(`Insufficient closed ${tf} candles`);
+  const gbpDaily=proxy?[]:await krakenCandles("GBPUSD",1440).catch(()=>[]);
+  const q=proxy?await binanceQuote(host):await krakenQuote();
+  const label=proxy?'Binance EUR/USDT · FX PROXY':'Kraken EUR/USD',d=frames.D1.at(-1);
+  const book={source:{id:provider,label,venue:proxy?'stablecoin FX proxy':'exchange FX',apiHost:host},frames,gbpDaily,meta:{...q,provider,instrument:proxy?'EUR/USDT':'EUR/USD',proxy,proxyAccepted:proxy,synthetic:false,live:true,streaming:false,feed:'poll',source:label,venue:proxy?'stablecoin FX proxy':'exchange FX',historyAt:Date.now(),liveAt:q.quoteAt,lastBar:frames.M15.at(-1).t,prevClose:frames.D1.at(-2)?.c||d.o,dayHigh:d.h,dayLow:d.l}};
+  const health=dataHealth(book);
+  if(!health.ok)throw new Error(health.reasons.join(' · '));
+  // SMT is unavailable on the proxy; never fabricate a correlated GBP instrument.
+  return book;
+}
+export async function loadLiveBook({mode='KRAKEN'}={}){
+  const errors=[];
+  if(mode!=='BINANCE')try{return await buildBook('KRAKEN');}catch(e){errors.push(`Kraken: ${e.message}`);}
+  if(mode==='AUTO'||mode==='BINANCE')for(const host of BINANCE_HOSTS)try{return await buildBook('BINANCE',host);}catch(e){errors.push(`Binance: ${e.message}`);}
+  loadLiveBook.lastError=errors.join(' | ')||'Invalid feed selection';
+  console.warn('Live book unavailable:',loadLiveBook.lastError);return null;
+}
+export function applyTick(market,price,ts=Date.now()){
+  if(!Number.isFinite(price)||price<=0||ts<Date.now()-60000||ts>Date.now()+2000)return false;
+  let opened=false;
+  for(const tf of Object.keys(TF_MS)){
+    const bars=market.frames[tf];if(!bars?.length)continue;
+    const last=bars.at(-1),bucket=bucketStart(ts,tf);
+    if(bucket===last.t){last.provisional=true;last.c=price;last.h=Math.max(last.h,price);last.l=Math.min(last.l,price);}
+    else if(bucket>last.t){bars.push({t:bucket,o:price,h:price,l:price,c:price,v:0,provisional:true});if(bars.length>1200)bars.shift();opened=true;}
   }
+  market.meta.spot=price;market.meta.lastBar=market.frames.M15.at(-1).t;
+  const day=market.frames.D1.at(-1);market.meta.dayHigh=day.h;market.meta.dayLow=day.l;return opened;
 }
-
-function binanceRows(rows) {
-  return rows.map((r) => ({
-    t: +r[0],
-    o: roundPx(+r[1]),
-    h: roundPx(+r[2]),
-    l: roundPx(+r[3]),
-    c: roundPx(+r[4]),
-    v: +r[5],
-  }));
-}
-
-async function fetchBinance(symbol, interval, limit = 1000) {
-  let lastErr;
-  for (const host of BINANCE_HOSTS) {
-    try {
-      const j = await getJSON(
-        `${host}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
-      );
-      if (Array.isArray(j) && j.length > 10) return binanceRows(j);
-    } catch (e) {
-      lastErr = e;
-    }
+export function startStream(market,{onTick,onStatus}){
+  let dead=false,busy=false,ticks=0;
+  // Capture identity: ticks may never change venue underneath an existing book.
+  const provider=market.source?.id||'KRAKEN',host=market.source?.apiHost;
+  async function poll(){
+    if(dead||busy)return;busy=true;
+    try{
+      const q=provider==='BINANCE'?await binanceQuote(host):await krakenQuote();if(dead)return;
+      Object.assign(market.meta,q,{live:true,streaming:false,feed:'poll',liveAt:q.quoteAt});
+      const opened=applyTick(market,q.spot,q.quoteAt);
+      onStatus?.({state:'poll',detail:`${market.meta.source} · bid/ask + venue trade time`,source:market.meta.source});
+      onTick?.({price:q.spot,ts:q.quoteAt,opened,ticks:++ticks,how:'poll'});
+    }catch(e){if(!dead)onStatus?.({state:'offline',detail:`${provider} quote failed: ${e.message}`});}
+    finally{busy=false;}
   }
-  throw lastErr || new Error("binance failed");
-}
-
-async function fetchKraken(pair, interval) {
-  const j = await getJSON(
-    `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${interval}`
-  );
-  if (j.error?.length) throw new Error(j.error.join(","));
-  const key = Object.keys(j.result || {}).find((k) => k !== "last");
-  const rows = key ? j.result[key] : null;
-  if (!rows?.length) throw new Error("kraken empty");
-  return rows.map((r) => ({
-    t: +r[0] * 1000,
-    o: roundPx(+r[1]),
-    h: roundPx(+r[2]),
-    l: roundPx(+r[3]),
-    c: roundPx(+r[4]),
-    v: +r[6],
-  }));
-}
-
-async function fetchKrakenTicker(pair) {
-  const j = await getJSON(`https://api.kraken.com/0/public/Ticker?pair=${pair}`);
-  const key = Object.keys(j.result || {})[0];
-  const t = key && j.result[key];
-  if (!t) return null;
-  return {
-    bid: +t.b[0],
-    ask: +t.a[0],
-    last: +t.c[0],
-    open: +t.o,
-    high: +t.h[1],
-    low: +t.l[1],
-  };
-}
-
-async function fetchBinanceTicker(symbol) {
-  const j = await getJSON(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
-  return {
-    last: +j.lastPrice,
-    open: +j.openPrice,
-    high: +j.highPrice,
-    low: +j.lowPrice,
-    bid: +j.bidPrice,
-    ask: +j.askPrice,
-  };
-}
-
-export async function loadLiveBook() {
-  const frames = {};
-  let source = null;
-  let ticker = null;
-
-  // 1) True FX from Kraken
-  try {
-    const pack = await Promise.all(
-      Object.keys(KRAKEN_TF).map(async (tf) => [tf, await fetchKraken("EURUSD", KRAKEN_TF[tf])])
-    );
-    for (const [tf, bars] of pack) frames[tf] = bars;
-    ticker = await fetchKrakenTicker("EURUSD").catch(() => null);
-    source = { id: "KRAKEN", label: "Kraken EUR/USD", venue: "spot FX" };
-  } catch {
-    // 2) Binance EURUSDT — tracks the cash pair tick-for-tick
-    try {
-      const pack = await Promise.all(
-        Object.keys(BINANCE_TF).map(async (tf) => [tf, await fetchBinance("EURUSDT", BINANCE_TF[tf])])
-      );
-      for (const [tf, bars] of pack) frames[tf] = bars;
-      ticker = await fetchBinanceTicker("EURUSDT").catch(() => null);
-      source = { id: "BINANCE", label: "Binance EURUSDT", venue: "crypto FX proxy" };
-    } catch {
-      return null;
-    }
-  }
-
-  let gbpDaily = [];
-  try {
-    gbpDaily = source.id === "KRAKEN"
-      ? await fetchKraken("GBPUSD", 1440)
-      : await fetchBinance("GBPUSDT", "1d", 400);
-  } catch {
-    gbpDaily = [];
-  }
-
-  const last = frames.M15[frames.M15.length - 1];
-  const prev = frames.D1.length > 1 ? frames.D1[frames.D1.length - 2].c : last.o;
-  const spot = ticker?.last || last.c;
-
-  return {
-    source,
-    ticker,
-    gbpDaily,
-    frames,
-    meta: {
-      live: true,
-      streaming: false,
-      source: source.label,
-      venue: source.venue,
-      spot: roundPx(spot),
-      prevClose: roundPx(ticker?.open || prev),
-      dayHigh: roundPx(ticker?.high || last.h),
-      dayLow: roundPx(ticker?.low || last.l),
-      bid: ticker?.bid,
-      ask: ticker?.ask,
-      lastBar: last.t,
-      liveAt: Date.now(),
-    },
-  };
-}
-
-export function applyTick(market, price, ts = Date.now()) {
-  if (!market || !validPx(price)) return false;
-  const px = roundPx(price);
-  let opened = false;
-  for (const [tf, ms] of Object.entries(TF_MS)) {
-    const bars = market.frames[tf];
-    if (!bars?.length) continue;
-    const bucket = Math.floor(ts / ms) * ms;
-    const last = bars[bars.length - 1];
-    if (last.t === bucket) {
-      last.c = px;
-      last.h = roundPx(Math.max(last.h, px));
-      last.l = roundPx(Math.min(last.l, px));
-    } else if (bucket > last.t) {
-      bars.push({ t: bucket, o: last.c, h: px, l: px, c: px, v: 0 });
-      opened = true;
-    }
-  }
-  market.meta.spot = px;
-  market.meta.live = true;
-  market.meta.liveAt = ts;
-  market.meta.dayHigh = roundPx(Math.max(market.meta.dayHigh || px, px));
-  market.meta.dayLow = roundPx(Math.min(market.meta.dayLow || px, px));
-  return opened;
-}
-
-export function startStream(market, { onTick, onStatus }) {
-  const sockets = [];
-  let poll = null;
-  let beat = null;
-  let dead = false;
-  let lastPx = market.meta.spot;
-  let lastTickAt = 0;
-  let ticks = 0;
-
-  const emit = (px, ts, how) => {
-    if (!validPx(px)) return;
-    if (Math.abs(px - lastPx) < 0.000001 && how !== "poll") return;
-    lastPx = px;
-    lastTickAt = Date.now();
-    ticks += 1;
-    const opened = applyTick(market, px, ts);
-    market.meta.streaming = how === "ws";
-    market.meta.feed = how;
-    onTick?.({ price: px, ts, opened, ticks, how });
-  };
-
-  const setStatus = (state, detail) => onStatus?.({ state, detail, source: market.meta.source });
-
-  const track = (ws) => {
-    sockets.push(ws);
-    return ws;
-  };
-
-  const openBinance = () => {
-    const ws = track(new WebSocket("wss://stream.binance.com:9443/ws/eurusdt@trade"));
-    ws.onopen = () => setStatus("live", "Binance trade stream");
-    ws.onmessage = (ev) => {
-      try {
-        const m = JSON.parse(ev.data);
-        emit(+(m.p || m.price), +(m.T || m.E || Date.now()), "ws");
-      } catch { /* ignore */ }
-    };
-    ws.onclose = () => {
-      if (dead) return;
-      window.setTimeout(openBinance, 1200);
-    };
-    ws.onerror = () => {};
-  };
-
-  const openKraken = () => {
-    const ws = track(new WebSocket("wss://ws.kraken.com"));
-    ws.onopen = () => {
-      ws.send(JSON.stringify({
-        event: "subscribe",
-        pair: ["EUR/USD"],
-        subscription: { name: "trade" },
-      }));
-      ws.send(JSON.stringify({
-        event: "subscribe",
-        pair: ["EUR/USD"],
-        subscription: { name: "ticker" },
-      }));
-      setStatus("live", "Kraken trade + ticker stream");
-    };
-    ws.onmessage = (ev) => {
-      try {
-        const m = JSON.parse(ev.data);
-        if (!Array.isArray(m)) return;
-        if (m[2] === "trade" && Array.isArray(m[1])) {
-          const last = m[1][m[1].length - 1];
-          if (last) emit(+last[0], Math.round(+last[2] * 1000), "ws");
-          return;
-        }
-        if (m[1]?.c) {
-          if (m[1].b) market.meta.bid = +m[1].b[0];
-          if (m[1].a) market.meta.ask = +m[1].a[0];
-          emit(+m[1].c[0], Date.now(), "ws");
-        }
-      } catch { /* ignore */ }
-    };
-    ws.onclose = () => {
-      if (dead) return;
-      window.setTimeout(openKraken, 1200);
-    };
-    ws.onerror = () => {};
-  };
-
-  const pollOnce = async () => {
-    try {
-      const preferKraken = market.meta.source?.includes("Kraken");
-      if (preferKraken) {
-        const t = await fetchKrakenTicker("EURUSD");
-        if (t) {
-          market.meta.bid = t.bid;
-          market.meta.ask = t.ask;
-          emit(t.last, Date.now(), lastTickAt && Date.now() - lastTickAt < 3000 ? "ws" : "poll");
-          return;
-        }
-      }
-      const t = await fetchBinanceTicker("EURUSDT");
-      if (t) {
-        market.meta.bid = t.bid;
-        market.meta.ask = t.ask;
-        emit(t.last, Date.now(), lastTickAt && Date.now() - lastTickAt < 3000 ? "ws" : "poll");
-      }
-    } catch {
-      setStatus("offline", "quote poll failed");
-    }
-  };
-
-  try {
-    if (market.meta.source?.includes("Kraken")) openKraken();
-    openBinance();
-  } catch {
-    setStatus("poll", "websocket blocked — polling");
-  }
-
-  poll = window.setInterval(pollOnce, 1000);
-  pollOnce();
-  beat = window.setInterval(() => {
-    if (dead) return;
-    if (Date.now() - lastTickAt > 6000) {
-      setStatus("reconnect", "stale tape — forcing poll");
-      pollOnce();
-    }
-  }, 3000);
-
-  return () => {
-    dead = true;
-    for (const ws of sockets) try { ws.close(); } catch { /* */ }
-    if (poll) clearInterval(poll);
-    if (beat) clearInterval(beat);
-  };
+  poll();const timer=setInterval(poll,5000);return()=>{dead=true;clearInterval(timer);};
 }

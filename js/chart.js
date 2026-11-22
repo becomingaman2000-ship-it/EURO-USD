@@ -1,3 +1,4 @@
+import { nyParts, forexOpen } from './safety.js';
 /* Institutional tape — canvas candlesticks with ICT overlays. */
 
 export class DeskChart {
@@ -73,7 +74,7 @@ export class DeskChart {
     this.tf = tf || this.tf;
     if (!opts.preserve || tfChanged || !prevCount) {
       this.view.end = bars.length;
-      this.view.count = this.tf === "M15" ? 96 : this.tf === "H1" ? 90 : this.tf === "H4" ? 80 : this.tf === "D1" ? 120 : 64;
+      this.view.count = this.tf === "M15" ? 96 : this.tf === "M30" ? 96 : this.tf === "H1" ? 90 : this.tf === "H4" ? 80 : this.tf === "D1" ? 120 : 64;
       this.view.count = Math.min(this.view.count, bars.length);
       if (!opts.soft) this.resize();
       else this.draw();
@@ -202,13 +203,12 @@ export class DeskChart {
     if (this.tf !== "M15" && this.tf !== "H1") return;
     ctx.save();
     for (let i = start; i < end; i++) {
-      const d = new Date(bars[i].t);
-      const utcH = d.getUTCHours();
-      // EDT: UTC-4. Asian ~ 00-06 UTC, London 06-11, NY 11-21
+      if(!forexOpen(bars[i].t))continue;
+      const hour = +nyParts(bars[i].t).hour;
       let color = null;
-      if (utcH >= 0 && utcH < 6) color = "rgba(122,155,184,0.045)";
-      else if (utcH >= 6 && utcH < 11) color = "rgba(196,163,90,0.05)";
-      else if (utcH >= 11 && utcH < 16) color = "rgba(111,191,154,0.04)";
+      if (hour >= 20 || hour < 2) color = "rgba(122,155,184,0.045)";
+      else if (hour >= 2 && hour < 5) color = "rgba(196,163,90,0.05)";
+      else if (hour >= 7 && hour < 12) color = "rgba(111,191,154,0.04)";
       if (!color) continue;
       const x0 = this.xAt(i) - (this.inner().w / this.view.count) / 2;
       ctx.fillStyle = color;
@@ -224,7 +224,7 @@ export class DeskChart {
     if (!eq) return;
     this.hline(ctx, eq, "rgba(232,213,163,0.35)", true, "EQ");
     if (a.dealing.year) {
-      this.hline(ctx, a.dealing.year.eq, "rgba(196,163,90,0.25)", true, "YR EQ");
+      this.hline(ctx, a.dealing.year.eq, "rgba(196,163,90,0.25)", true, "ROLLING EQ");
     }
   }
 

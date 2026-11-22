@@ -1,3 +1,4 @@
+import { normalizeBars, bucketStart } from './safety.js';
 /* EUR/USD market fabric — anchored to published 2025–2026 prints,
    then expanded into session-aware OHLC so ICT structure is readable. */
 
@@ -326,7 +327,7 @@ function sculptToday(m15) {
 function aggregate(src, ms) {
   const map = new Map();
   for (const b of src) {
-    const key = Math.floor(b.t / ms) * ms;
+    const key = ms === 604800000 ? bucketStart(b.t, "W1") : Math.floor(b.t / ms) * ms;
     const cur = map.get(key);
     if (!cur) {
       map.set(key, { t: key, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v });
@@ -369,7 +370,8 @@ export function getMarket() {
   m15 = sculptToday(m15);
   const h1Recent = aggregate(m15, 60 * 60 * 1000);
   const h1Old = expandIntraday(daily.slice(-140, -45), 60, mulberry32(0x555344));
-  const h1 = [...h1Old, ...h1Recent].sort((a, b) => a.t - b.t);
+  const h1 = normalizeBars([...h1Old, ...h1Recent]);
+  const m30 = aggregate(m15, 30 * 60 * 1000);
   const h4 = aggregate(h1, 4 * 60 * 60 * 1000);
   const weekly = aggregate(daily, 7 * 24 * 60 * 60 * 1000);
   const gbpDaily = buildGbp(daily, mulberry32(0x474250));
@@ -385,11 +387,13 @@ export function getMarket() {
   CACHE = {
     meta: {
       ...MARKET_META,
+      synthetic: true, live: false, instrument: "DEMO",
       spot: last.c,
       lastBar: last.t,
     },
     frames: {
       M15: m15,
+      M30: m30,
       H1: h1.slice(-1800),
       H4: h4.slice(-900),
       D1: daily,
@@ -400,81 +404,12 @@ export function getMarket() {
   return CACHE;
 }
 
-export function applyLiveSpot(spot) {
-  const m = getMarket();
-  if (!Number.isFinite(spot) || spot < 0.8 || spot > 1.6) return m;
-  const last = m.frames.M15[m.frames.M15.length - 1];
-  const delta = spot - last.c;
-  if (Math.abs(delta) > 0.02) return m;
-  last.c = roundPx(spot);
-  last.h = roundPx(Math.max(last.h, spot));
-  last.l = roundPx(Math.min(last.l, spot));
-  for (const key of ["H1", "H4", "D1"]) {
-    const bar = m.frames[key][m.frames[key].length - 1];
-    bar.c = last.c;
-    bar.h = Math.max(bar.h, last.h);
-    bar.l = Math.min(bar.l, last.l);
-  }
-  m.meta.spot = last.c;
-  m.meta.live = true;
-  return m;
-}
+export function applyLiveSpot() { return getMarket(); } // Quote-only hydration intentionally disabled.
 
 export function hydrateFromLive(book) {
   if (!book?.frames?.M15?.length) return getMarket();
-  const base = getMarket();
-  CACHE = {
-    meta: {
-      ...base.meta,
-      ...book.meta,
-      yearHigh: base.meta.yearHigh,
-      yearLow: base.meta.yearLow,
-      yearAvg: base.meta.yearAvg,
-      sma50: base.meta.sma50,
-      sma100: base.meta.sma100,
-      sma200: base.meta.sma200,
-      live: true,
-    },
-    frames: {
-      M15: book.frames.M15,
-      H1: book.frames.H1,
-      H4: book.frames.H4,
-      D1: book.frames.D1,
-      W1: book.frames.W1,
-    },
-    gbpDaily: book.gbpDaily?.length ? book.gbpDaily : base.gbpDaily,
-    source: book.source,
-  };
+  CACHE = {meta:{pair:'EUR/USD',pip:0.0001,...book.meta},frames:Object.fromEntries(Object.entries(book.frames).map(([tf,bars])=>[tf,normalizeBars(bars)])),gbpDaily:book.gbpDaily||[],source:book.source};
   return CACHE;
 }
 
-export async function fetchLiveSpot() {
-  const controllers = [];
-  const tryFetch = async (url, parse) => {
-    const ctrl = new AbortController();
-    controllers.push(ctrl);
-    const t = setTimeout(() => ctrl.abort(), 4500);
-    try {
-      const res = await fetch(url, { signal: ctrl.signal });
-      if (!res.ok) throw new Error(String(res.status));
-      return parse(await res.json());
-    } finally {
-      clearTimeout(t);
-    }
-  };
-
-  const jobs = [
-    tryFetch("https://api.frankfurter.app/latest?from=EUR&to=USD", (j) => j?.rates?.USD),
-    tryFetch("https://open.er-api.com/v6/latest/EUR", (j) => j?.rates?.USD),
-    tryFetch("https://api.binance.com/api/v3/ticker/price?symbol=EURUSDT", (j) => +j?.price),
-    tryFetch("https://api.exchangerate.host/latest?base=EUR&symbols=USD", (j) => j?.rates?.USD),
-  ];
-
-  const results = await Promise.allSettled(jobs);
-  for (const r of results) {
-    if (r.status === "fulfilled" && Number.isFinite(r.value) && r.value > 0.8 && r.value < 1.6) {
-      return r.value;
-    }
-  }
-  return null;
-}
+export async function fetchLiveSpot() { return null; } // Full verified book required.

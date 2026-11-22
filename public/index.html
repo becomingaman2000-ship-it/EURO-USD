@@ -29,7 +29,7 @@
       </svg>
       <div>
         <strong>IPDA Desk</strong>
-        <em>Interbank Price Delivery Algorithm · <a href="backtest.html" style="color:inherit">3-month backtest</a></em>
+        <em>Interbank Price Delivery Algorithm · <a href="backtest.html" style="color:inherit">Archived demo backtest</a></em>
       </div>
     </div>
 
@@ -65,6 +65,20 @@
   </header>
 
   <main>
+    <section class="panel" style="padding:18px;border:1px solid #a8894d;margin:16px 0" aria-label="Live market safety">
+      <h2>Live EUR/USD · signal safety</h2>
+      <p>Kraken EUR/USD preferred; optional Binance EUR/USDT is a stablecoin proxy, not broker EUR/USD. Complete venue histories are kept separate. Signals are blocked on demo data, stale history, stale trades, wide spreads, market closure, or extreme volatility. No broker orders are placed.</p>
+      <p>No automatic economic calendar is connected. Check upcoming EUR/USD releases before enabling monitoring. Confirmation expires after 30 minutes; it does not guarantee news-safe conditions.</p>
+      <label for="feedMode">Market source</label>
+      <select id="feedMode" style="max-width:100%;padding:10px;background:#17191f;color:#eee;border:1px solid #a8894d">
+        <option value="AUTO">Auto · Kraken, then Binance FX proxy</option>
+        <option value="KRAKEN">Kraken · EUR/USD only</option>
+        <option value="BINANCE">Binance · EUR/USDT proxy (not EUR/USD)</option>
+      </select>
+      <p>Direction is available on healthy data without enabling entries. BUY/SELL BIAS describes confirmed structure plus momentum, not a guaranteed forecast. WAIT means evidence is weak or conflicting. Proxy prices must be checked against MT5.</p>
+      <button id="confirmCalendar" type="button">I checked the calendar · monitor for 30 minutes</button>
+      <button id="resetSignals" type="button">Reset paper signal monitoring</button>
+    </section>
     <section class="execute" id="execute">
       <div class="ex-head">
         <div class="ex-action" id="exAction" data-action="FLAT">
@@ -73,7 +87,7 @@
           <em id="exActionSub">Reading EUR/USD…</em>
         </div>
         <div>
-          <span class="ex-kicker">Live execution · updated every tick</span>
+          <span class="ex-kicker">Paper entry monitoring · live quotes, closed-candle confirmation</span>
           <h2 id="exState">READING THE TAPE</h2>
           <p id="exWhen">Waiting on kill zone and entry array…</p>
         </div>
@@ -123,6 +137,17 @@
       </div>
     </section>
 
+    <section class="direction">
+      <header class="dir-head">
+        <div>
+          <p class="eyebrow">Closed-candle structure · not an entry instruction</p>
+          <h2>Multi-timeframe direction board</h2>
+        </div>
+        <p>One read per timeframe from the IPDA engine. “Entry in” is the hours until the next tradable kill zone opens (when the trade can be taken); “To finish” is the ATR-scaled estimate for the move to reach its draw.</p>
+      </header>
+      <div id="dirGrid" class="dir-grid"></div>
+    </section>
+
     <section class="limits">
       <header class="limits-head">
         <div>
@@ -139,6 +164,7 @@
         <div class="toolbar">
           <div class="tf">
             <button data-tf="M15">M15</button>
+            <button data-tf="M30">M30</button>
             <button data-tf="H1" class="on">H1</button>
             <button data-tf="H4">H4</button>
             <button data-tf="D1">D1</button>

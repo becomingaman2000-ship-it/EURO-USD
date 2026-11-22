@@ -1,5 +1,12 @@
+import { marketHealth, dataHealth, createSignalTracker } from './safety.js';
+const signalTracker=createSignalTracker();
+let attaching=false;
+let newsCheckedUntil=0;
+let feedMode="AUTO";
+let feedRequest=0;
+let retryTimer=null;
 import { getMarket, hydrateFromLive, MARKET_META } from "./data.js";
-import { analyze, killZones, executionFrom } from "./ict.js";
+import { analyze, killZones, executionFrom, directionsFrom } from "./ict.js";
 import { DeskChart } from "./chart.js";
 import { loadLiveBook, startStream } from "./live.js";
 import { mailEnabled, setMailEnabled, maybeNotify, sendAlert, lastMail, ALERT_EMAIL } from "./notify.js";
@@ -37,7 +44,7 @@ function feedLabel(meta) {
   if (meta?.streaming) return `LIVE · ${meta.source || "STREAM"}`;
   if (meta?.live && meta?.feed === "poll") return `LIVE POLL · ${meta.source || "REST"}`;
   if (meta?.live) return `LIVE BOOK · ${meta.source || "TAPE"}`;
-  return "COMPOSITE TAPE · SEEKING LIVE FEED";
+  return "DEMO / SYNTHETIC · SIGNALS BLOCKED";
 }
 
 function setFeedStatus(stateName, detail) {
@@ -83,17 +90,18 @@ function renderTape(a) {
   $("#biasLtf").textContent = a.bias.shortTerm;
   $("#biasLtf").className = "seal " + clsBias(a.bias.shortTerm);
 
+  const directionHealth=dataHealth(state.market);
   const live = $("#livePill");
   if (live) {
-    live.dataset.on = a.meta.live ? "1" : "0";
+    live.dataset.on = directionHealth.ok ? "1" : "0";
     live.dataset.stream = a.meta.streaming ? "1" : "0";
-    live.textContent = a.meta.streaming ? "STREAMING" : a.meta.live ? "LIVE BOOK" : "STANDBY";
+    live.textContent = directionHealth.ok ? (a.meta.proxy ? "LIVE PROXY" : "LIVE EUR/USD") : "DATA UNVERIFIED";
   }
   const feed = $("#feedLine");
   if (feed) {
     const age = a.meta.liveAt ? Math.max(0, Math.round((Date.now() - a.meta.liveAt) / 1000)) : "—";
     const ba = a.meta.bid && a.meta.ask ? `  ·  ${fmt(a.meta.bid)} / ${fmt(a.meta.ask)}` : "";
-    feed.textContent = `${a.meta.source || "composite"}${ba}  ·  ${age === "—" ? "no tick yet" : age + "s ago"}`;
+    feed.textContent = `${a.meta.source || "synthetic demo"}${ba} · last trade ${a.meta.tradeAt ? Math.max(0,Math.round((Date.now()-a.meta.tradeAt)/1000))+"s ago" : "unverified"}  ·  ${age === "—" ? "no tick yet" : age + "s ago"}`;
   }
 
   const g = $("#gaugeFill");
@@ -104,7 +112,7 @@ function renderTape(a) {
   $("#confScore").textContent = a.confluence.score;
   $("#confNotes").textContent = a.confluence.notes.join(" · ") || "Mixed read";
 
-  const act = actionOf(a.execution?.side || a.bias.shortTerm);
+  const act = a.health?.ok ? actionOf(a.execution?.side) : "FLAT";
   const flag = $("#actionFlag");
   const word = $("#actionWord");
   if (flag && word) {
@@ -115,7 +123,7 @@ function renderTape(a) {
 
 function renderMTF(a) {
   const box = $("#mtfGrid");
-  const rows = ["W1", "D1", "H4", "H1", "M15"];
+  const rows = ["W1", "D1", "H4", "H1", "M30", "M15"];
   box.innerHTML = rows
     .map((tf) => {
       const s = a.structure[tf];
@@ -124,6 +132,28 @@ function renderMTF(a) {
         <header><span>${tf}</span><b class="${clsBias(s.trend)}">${s.trend}</b></header>
         <p>${ev ? `${ev.kind} ${ev.dir} @ ${fmt(ev.price)}` : "No fresh MSS"}</p>
         <footer>H ${fmt(s.lastHigh?.price || 0)} · L ${fmt(s.lastLow?.price || 0)}</footer>
+      </article>`;
+    })
+    .join("");
+}
+
+function renderDirections(a) {
+  const box = $("#dirGrid");
+  if (!box) return;
+  const rows = a.directions || [];
+  const health=dataHealth(state.market);
+  box.innerHTML = rows
+    .map((d) => {
+      const act = !health.ok ? "FLAT" : d.bias === "BUY" ? "BUY" : d.bias === "SELL" ? "SELL" : "FLAT";
+      return `<article class="dir-card ${clsBias(d.trend)}" data-action="${act}">
+        <header><span>${d.label}</span><b>${!health.ok ? "UNVERIFIED" : act === "FLAT" ? "WAIT" : act+" BIAS"}</b></header>
+        <div class="dir-trend"><i></i>${d.trend} · ${d.confidence}</div>
+        <div class="dir-target"><span>draw</span><em>${d.targetLabel}</em></div>
+        <dl>
+          <div><dt>Closed (UTC)</dt><dd>${new Date(d.closedAt).toISOString().slice(5,16).replace("T"," ")}</dd></div>
+          <div><dt>To finish</dt><dd>${d.finishLabel}</dd></div>
+        </dl>
+        <p>${health.ok ? d.note : "Data unverified — no directional call."}${a.meta.proxy ? " EUR/USDT proxy; Pepperstone EUR/USD may differ." : ""}</p>
       </article>`;
     })
     .join("");
@@ -141,6 +171,7 @@ function renderExecute(a) {
     stamp.dataset.action = act;
     $("#exActionWord").textContent = act;
     $("#exActionSub").textContent =
+      a.meta.proxy ? "EUR/USDT proxy — check Pepperstone EUR/USD before trading" :
       act === "BUY" ? "Buy the euro / sell the dollar" :
       act === "SELL" ? "Sell the euro / buy the dollar" :
       "No directional order";
@@ -212,12 +243,12 @@ function renderPred(a) {
   $("#predGrid").innerHTML = cards
     .map(
       ([name, x]) => `<article class="${clsBias(x.direction)}">
-        <header><span>${name}</span><b>${actionOf(x.direction)}</b></header>
+        <header><span>${name}</span><b>${a.health?.ok ? actionOf(x.direction) : "UNVERIFIED"}</b></header>
         <div class="target">${fmt(x.target)}</div>
         <dl>
           <div><dt>Stretch</dt><dd>${fmt(x.stretch)}</dd></div>
           <div><dt>Invalid</dt><dd>${fmt(x.invalid)}</dd></div>
-          <div><dt>Conf.</dt><dd>${x.confidence}%</dd></div>
+          <div><dt>Conf.</dt><dd>${x.confidence}</dd></div>
         </dl>
         <p>${x.text}</p>
       </article>`
@@ -356,11 +387,14 @@ function clamp(v, a, b) {
 }
 
 function refresh(market, opts = {}) {
+  market.meta.newsCheckedUntil=newsCheckedUntil;
   state.market = market;
   state.analysis = analyze(market);
   const a = state.analysis;
+  a.execution=signalTracker.update(a.execution,market);
   renderTape(a);
   renderExecute(a);
+  renderDirections(a);
   if (!opts.tickOnly) {
     renderMTF(a);
     renderLimits(a);
@@ -386,15 +420,22 @@ function setTF(tf) {
 }
 
 async function attachLive() {
-  setFeedStatus("seek", "Requesting live EUR/USD book…");
-  const book = await loadLiveBook();
+  if(attaching)return; attaching=true;
+  if(retryTimer!==null){clearTimeout(retryTimer);retryTimer=null;}
+  setFeedStatus("seek", "Requesting complete live market book…");
+  const request=++feedRequest,mode=feedMode;
+  const book = await loadLiveBook({mode});
+  attaching=false;
+  if(request!==feedRequest||mode!==feedMode){attachLive();return;}
   if (!book) {
-    setFeedStatus("offline", "Live venues blocked — composite tape");
-    window.setTimeout(attachLive, 20000);
+    setFeedStatus("offline", `Live data unavailable — ${loadLiveBook.lastError||"retrying"}`);
+    retryTimer=window.setTimeout(attachLive, 20000);
     return;
   }
   state.live = true;
   if (state.stopStream) state.stopStream();
+  const oldSource=state.market?.meta?.source;
+  if(oldSource!==book.meta.source)signalTracker.reset();
   const m = hydrateFromLive(book);
   refresh(m);
   setFeedStatus("book", `${book.source.label} book loaded`);
@@ -414,15 +455,17 @@ async function attachLive() {
       lastPaint = now;
       state.analysis.price = price;
       state.analysis.meta = m.meta;
-      state.analysis.execution = executionFrom(
-        state.analysis.setups,
+      const health=marketHealth(m,now);
+      state.analysis.health=health;
+      state.analysis.execution = signalTracker.update(executionFrom(health.ok ? state.analysis.setups : [],price,now,state.analysis.po3,state.analysis.bias),m,now);
+      state.analysis.directions = directionsFrom(
+        state.analysis.frames,
         price,
-        now,
-        state.analysis.po3,
-        state.analysis.bias
+        killZones(now)
       );
       renderTape(state.analysis);
       renderExecute(state.analysis);
+      renderDirections(state.analysis);
       state.chart.setData(m.frames[state.tf], state.analysis, state.tf, {
         preserve: true,
         soft: true,
@@ -433,6 +476,15 @@ async function attachLive() {
 }
 
 function boot() {
+  try {const saved=localStorage.getItem("ipda-feed-mode");if(["AUTO","KRAKEN","BINANCE"].includes(saved))feedMode=saved;}catch{}
+  $("#feedMode").value=feedMode;
+  $("#feedMode").addEventListener("change",()=>{
+    feedMode=$("#feedMode").value;feedRequest++;
+    try{localStorage.setItem("ipda-feed-mode",feedMode);}catch{}
+    state.stopStream?.();signalTracker.reset();
+    if(state.market){state.market.meta.live=false;refresh(state.market,{preserve:true,soft:true});}
+    attachLive();
+  });
   state.chart = new DeskChart($("#tape"), $("#tapeOv"));
   state.chart.onHover = renderHover;
   refresh(getMarket());
@@ -461,10 +513,28 @@ function boot() {
   attachLive();
 
   window.addEventListener("keydown", (e) => {
-    const map = { 1: "M15", 2: "H1", 3: "H4", 4: "D1", 5: "W1" };
+    const map = { 1: "M15", 2: "M30", 3: "H1", 4: "H4", 5: "D1", 6: "W1" };
     if (map[e.key]) setTF(map[e.key]);
   });
 
+  // Independent watchdog: feed silence must revoke actionable guidance, even with no ticks.
+  setInterval(()=>{
+    if(!state.market||!state.analysis)return;
+    const health=marketHealth(state.market);
+    if(!health.ok){
+      state.analysis.execution=signalTracker.update(state.analysis.execution,state.market);
+      state.analysis.health=health;
+      state.analysis.setups=[];state.analysis.limits=[];
+      renderTape(state.analysis);renderExecute(state.analysis);renderDirections(state.analysis);renderSetups(state.analysis);renderLimits(state.analysis);renderPred(state.analysis);
+      setFeedStatus('offline',health.reasons.join(' · '));
+      const data=dataHealth(state.market);
+      if(data.ok)setFeedStatus('poll',`${state.market.meta.source} · data live; entries gated: ${health.reasons.join(' · ')}`);
+    }
+  },1000);
+  // Reload complete books on failover; never attach a different venue's quotes to old candles.
+  setInterval(()=>{if(!attaching&&state.live)attachLive();},60000);
+  $('#confirmCalendar').addEventListener('click',()=>{newsCheckedUntil=Date.now()+30*60000;if(state.market)refresh(state.market,{preserve:true,soft:true});});
+  $('#resetSignals').addEventListener('click',()=>{signalTracker.reset();if(state.market)refresh(state.market,{preserve:true,soft:true});});
   $("#yearNow").textContent = new Date().getFullYear();
   requestAnimationFrame(() => $("#boot")?.classList.add("off"));
 }

@@ -1,3 +1,4 @@
+import { TF_MS, nyParts, forexOpen, marketHealth, dataHealth } from './safety.js';
 /* Advanced ICT / IPDA engine — structure, liquidity, PD arrays, models, bias. */
 
 const PIP = 0.0001;
@@ -31,64 +32,26 @@ function swings(bars, left = 2, right = 2) {
       if (bars[k].h >= bars[i].h) hi = false;
       if (bars[k].l <= bars[i].l) lo = false;
     }
-    if (hi) out.push({ i, t: bars[i].t, price: bars[i].h, type: "H" });
-    if (lo) out.push({ i, t: bars[i].t, price: bars[i].l, type: "L" });
+    if (hi) out.push({ i, confirmedI: i + right, t: bars[i].t, price: bars[i].h, type: "H" });
+    if (lo) out.push({ i, confirmedI: i + right, t: bars[i].t, price: bars[i].l, type: "L" });
   }
   return out;
 }
 
 function structure(bars, sw) {
-  const highs = sw.filter((s) => s.type === "H");
-  const lows = sw.filter((s) => s.type === "L");
-  const events = [];
-  let trend = "RANGE";
-  let lastHigh = highs[0];
-  let lastLow = lows[0];
-  let confirmedHigh = highs[0];
-  let confirmedLow = lows[0];
-
-  const seq = [...sw].sort((a, b) => a.i - b.i);
-  for (const s of seq) {
-    if (s.type === "H") {
-      if (lastHigh && s.price > lastHigh.price) {
-        const kind = trend === "BEARISH" ? "CHOCH" : "BOS";
-        events.push({ kind, dir: "BULL", t: s.t, price: s.price, i: s.i, ref: lastHigh.price });
-        trend = "BULLISH";
-        confirmedHigh = s;
-      }
-      lastHigh = s;
-    } else {
-      if (lastLow && s.price < lastLow.price) {
-        const kind = trend === "BULLISH" ? "CHOCH" : "BOS";
-        events.push({ kind, dir: "BEAR", t: s.t, price: s.price, i: s.i, ref: lastLow.price });
-        trend = "BEARISH";
-        confirmedLow = s;
-      }
-      lastLow = s;
+  let trend='RANGE', lastHigh=null,lastLow=null;
+  const events=[], broken=new Set();
+  // Pivots become usable only once their right-hand confirmation bars close.
+  for(let i=0;i<bars.length;i++) {
+    for(const pivot of sw) if(pivot.confirmedI===i) {if(pivot.type==='H')lastHigh=pivot;else lastLow=pivot;}
+    for(const [pivot,up] of [[lastHigh,true],[lastLow,false]]) {
+      if(!pivot||broken.has(pivot)||!(up?bars[i].c>pivot.price:bars[i].c<pivot.price))continue;
+      const next=up?'BULLISH':'BEARISH';
+      events.push({kind:trend!=='RANGE'&&trend!==next?'CHOCH':'BOS',dir:up?'BULL':'BEAR',t:bars[i].t,price:bars[i].c,i,ref:pivot.price});
+      trend=next;broken.add(pivot);
     }
   }
-
-  const last = events[events.length - 1] || null;
-  const hh = highs.slice(-3);
-  const ll = lows.slice(-3);
-  let label = trend;
-  if (hh.length >= 2 && ll.length >= 2) {
-    const risingH = hh[hh.length - 1].price > hh[0].price;
-    const risingL = ll[ll.length - 1].price > ll[0].price;
-    if (risingH && risingL) label = "BULLISH";
-    else if (!risingH && !risingL) label = "BEARISH";
-    else label = trend === "RANGE" ? "RANGE" : trend;
-  }
-
-  return {
-    trend: label,
-    lastEvent: last,
-    events: events.slice(-12),
-    lastHigh: lastHigh || confirmedHigh,
-    lastLow: lastLow || confirmedLow,
-    swingHighs: highs.slice(-8),
-    swingLows: lows.slice(-8),
-  };
+  return {trend,lastEvent:events.at(-1)||null,events:events.slice(-12),lastHigh,lastLow,swingHighs:sw.filter(s=>s.type==='H').slice(-8),swingLows:sw.filter(s=>s.type==='L').slice(-8)};
 }
 
 function fvgs(bars, lookback = 180) {
@@ -281,25 +244,17 @@ function liquidityPools(bars, sw) {
 }
 
 function calendarLiquidity(bars) {
-  const extras = [];
-  if (!bars.length) return extras;
-  const last = bars[bars.length - 1];
-  const day = 24 * 3600 * 1000;
-  const today0 = Math.floor(last.t / day) * day;
-  const yBars = bars.filter((b) => b.t >= today0 - day && b.t < today0);
-  const wStart = today0 - 4 * day;
-  const wBars = bars.filter((b) => b.t >= wStart && b.t < today0);
-  if (yBars.length) {
-    extras.push({ id: "PDH", label: "Previous Day High", price: Math.max(...yBars.map((b) => b.h)), side: "BSL" });
-    extras.push({ id: "PDL", label: "Previous Day Low", price: Math.min(...yBars.map((b) => b.l)), side: "SSL" });
-  }
-  if (wBars.length) {
-    extras.push({ id: "PWH", label: "Previous Week High", price: Math.max(...wBars.map((b) => b.h)), side: "BSL" });
-    extras.push({ id: "PWL", label: "Previous Week Low", price: Math.min(...wBars.map((b) => b.l)), side: "SSL" });
-  }
-  extras.push({ id: "PSY", label: "Psychological 1.1500", price: 1.15, side: "SSL" });
-  extras.push({ id: "PSY2", label: "Psychological 1.1600", price: 1.16, side: "BSL" });
-  return extras;
+  if(!bars.length)return [];
+  const key=ts=>{const p=nyParts(ts);const d=new Date(`${p.year}-${p.month}-${p.day}T12:00:00Z`);if(+p.hour>=17)d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10);};
+  const last=bars.at(-1), today=key(last.t);
+  const days=[...new Set(bars.map(b=>key(b.t)))].filter(k=>k<today).sort();
+  const prev=bars.filter(b=>key(b.t)===days.at(-1));
+  const weekKey=k=>{const d=new Date(k+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7));return d.toISOString().slice(0,10);};
+  const thisWeek=weekKey(today), weeks=[...new Set(days.map(weekKey))].filter(k=>k<thisWeek).sort();
+  const prevWeek=bars.filter(b=>weekKey(key(b.t))===weeks.at(-1));
+  const out=[];
+  for(const [a,hi,lo] of [[prev,'PDH','PDL'],[prevWeek,'PWH','PWL']])if(a.length){out.push({id:hi,label:hi,price:Math.max(...a.map(b=>b.h)),side:'BSL'},{id:lo,label:lo,price:Math.min(...a.map(b=>b.l)),side:'SSL'});}
+  return out;
 }
 
 function dealingRange(struct, price) {
@@ -323,42 +278,26 @@ function dealingRange(struct, price) {
     eq,
     pos,
     zone,
-    oteBuy: [lo + (hi - lo) * 0.62, lo + (hi - lo) * 0.705, lo + (hi - lo) * 0.79],
-    oteSell: [fib(0.62), fib(0.705), fib(0.79)],
+    oteBuy: [fib(0.62), fib(0.705), fib(0.79)],
+    oteSell: [lo + (hi - lo) * 0.62, lo + (hi - lo) * 0.705, lo + (hi - lo) * 0.79],
     fibs: [0, 0.21, 0.5, 0.62, 0.705, 0.79, 1].map((f) => ({ f, price: lo + (hi - lo) * f })),
   };
 }
 
 function sessionsFrom(bars) {
-  const last = bars[bars.length - 1];
-  if (!last) return {};
-  const day = new Date(last.t);
-  const y = day.getUTCFullYear();
-  const m = day.getUTCMonth();
-  const d = day.getUTCDate();
-  // Approximate NY windows in UTC for August (EDT = UTC-4)
-  const windows = {
-    asian: [Date.UTC(y, m, d - 1, 0, 0), Date.UTC(y, m, d, 6, 0)], // 20:00-02:00 NY
-    london: [Date.UTC(y, m, d, 6, 0), Date.UTC(y, m, d, 11, 0)],
-    ny: [Date.UTC(y, m, d, 11, 0), Date.UTC(y, m, d, 21, 0)],
-  };
-  const pack = (key, range) => {
-    const sl = bars.filter((b) => b.t >= range[0] && b.t < range[1]);
-    if (!sl.length) return null;
-    return {
-      key,
-      high: Math.max(...sl.map((b) => b.h)),
-      low: Math.min(...sl.map((b) => b.l)),
-      open: sl[0].o,
-      close: sl[sl.length - 1].c,
-      bars: sl.length,
-    };
-  };
-  return {
-    asian: pack("ASIAN", windows.asian),
-    london: pack("LONDON", windows.london),
-    ny: pack("NY", windows.ny),
-  };
+  const last = bars.at(-1); if (!last) return {};
+  const dateKey = ts => { const p=nyParts(ts); return `${p.year}-${p.month}-${p.day}`; };
+  const lp=nyParts(last.t);
+  // Asian 20:00 prior local date to 02:00 current local date; DST handled by Intl.
+  const anchor=last.t+(+lp.hour>=20?86400000:0);
+  const today=dateKey(anchor), yesterday=dateKey(anchor-86400000);
+  const select = kind => bars.filter(b=>{
+    const p=nyParts(b.t), h=+p.hour + +p.minute/60, key=dateKey(b.t);
+    if(kind==='asian') return (key===yesterday && h>=20)||(key===today && h<2);
+    return key===today && (kind==='london' ? h>=2&&h<5 : h>=7&&h<17);
+  });
+  const pack=key=>{ const a=select(key);return a.length?{key,high:Math.max(...a.map(b=>b.h)),low:Math.min(...a.map(b=>b.l)),open:a[0].o,close:a.at(-1).c,bars:a.length}:null; };
+  return {asian:pack('asian'),london:pack('london'),ny:pack('ny')};
 }
 
 function powerOfThree(sessions, price, dayBar) {
@@ -412,7 +351,7 @@ function smt(eurDaily, gbpDaily) {
     return {
       type: "BULLISH",
       label: "Bullish SMT",
-      detail: "EUR printed a fresh sell-side low while GBP refused. Smart-money divergence favors a euro bounce if 1.1500 is defended.",
+      detail: "EUR printed a fresh sell-side low while GBP refused. This is a conditional divergence, not entry confirmation.",
     };
   }
   if (eHH && !gHH) {
@@ -478,173 +417,44 @@ function nearest(arr, price, pred) {
 }
 
 function buildSetups(ctx) {
-  const { price, d1r, h1, m15, liq, po3, bias, frames } = ctx;
-  const setups = [];
-  const atr = atr14(frames.M15) || 0.0009;
-
-  const bsl = liq.pools.filter((p) => p.side === "BSL").sort((a, b) => a.price - b.price);
-  const ssl = liq.pools.filter((p) => p.side === "SSL").sort((a, b) => b.price - a.price);
-  const nextBSL = bsl.find((p) => p.price > price + 2 * PIP) || { price: 1.1567 };
-  const nextSSL = ssl.find((p) => p.price < price - 2 * PIP) || { price: 1.15 };
-
-  const bearFvg = [...h1.gaps, ...m15.gaps].filter((g) => g.type === "BEAR" && g.fill < 0.85 && g.bot > 1.15).pop();
-  const bullFvg = [...h1.gaps, ...m15.gaps].filter((g) => g.type === "BULL" && g.fill < 0.85 && g.top < price + 0.004).pop();
-
-  if (bias.shortTerm === "BEARISH" || po3.judas?.side === "BSL") {
-    const entry = bearFvg ? bearFvg.ce : Math.max(price + 0.0006, 1.1534);
-    const sl = Math.max(po3.judas?.price || 1.1563, nextBSL.price) + 0.00018;
-    const t1 = Math.min(nextSSL.price, 1.15);
-    const t2 = Math.min(1.1466, t1 - 0.003);
-    setups.push({
-      id: "2022-SHORT",
-      model: "ICT 2022 Model",
-      side: "SHORT",
-      title: "Premium continuation after BSL Judas",
-      entry,
-      sl,
-      t1,
-      t2,
-      rr: (entry - t1) / Math.max(sl - entry, 0.0002),
-      invalid: sl,
-      window: "London Close / NY PM / next London",
-      thesis:
-        "Buy-side above the London/NY morning high was engineered (1.1563). Displacement lower leaves a bearish PD array in premium. IPDA’s next draw is internal range liquidity at 1.1500, then the 50-day / July demand at 1.1466.",
-    });
-  }
-
-  if (d1r.zone === "DISCOUNT" || price <= 1.1512) {
-    const entry = Math.min(price, 1.1502);
-    const sl = 1.1461;
-    setups.push({
-      id: "HTF-LONG",
-      model: "OTE + HTF Discount",
-      side: "LONG",
-      title: "Yearly-discount reaction at 1.1500 SSL",
-      entry,
-      sl,
-      t1: 1.1567,
-      t2: 1.163,
-      rr: (1.1567 - entry) / Math.max(entry - sl, 0.0002),
-      invalid: sl,
-      window: "Next London or NY AM, only after MSS higher",
-      thesis:
-        "On the 2026 dealing range (1.1356–1.2019) price is deep in discount. A sweep of 1.1500 that reclaims and prints a bullish CISD/MSS is a high-quality long back into 100-day and 200-day arrays.",
-    });
-  }
-
-  if (bullFvg && bias.htf === "BULLISH") {
-    setups.push({
-      id: "UNICORN",
-      model: "Unicorn (Breaker + FVG)",
-      side: "LONG",
-      title: "Bullish unicorn if 1.1500 is swept and reclaimed",
-      entry: bullFvg.ce,
-      sl: Math.min(1.1488, bullFvg.bot - 0.0004),
-      t1: 1.1563,
-      t2: 1.163,
-      rr: 2.4,
-      invalid: 1.1466,
-      window: "Kill zone only",
-      thesis: "Requires a sell-side raid, a shift in delivery, then entry inside the overlapping bullish FVG/breaker. Do not front-run.",
-    });
-  }
-
-  return setups.map((s) => ({
-    ...s,
-    entry: +s.entry.toFixed(5),
-    sl: +s.sl.toFixed(5),
-    t1: +s.t1.toFixed(5),
-    t2: +s.t2.toFixed(5),
-    rr: +Number(s.rr).toFixed(2),
-    riskPips: +((Math.abs(s.entry - s.sl) / PIP).toFixed(1)),
-    t1Pips: +((Math.abs(s.t1 - s.entry) / PIP).toFixed(1)),
-  }));
+  const {price,frames,bias,po3}=ctx;
+  const side=bias.shortTerm==='BULLISH'?'LONG':bias.shortTerm==='BEARISH'?'SHORT':null;
+  if(!side) return [];
+  const bullish=side==='LONG', type=bullish?'BULL':'BEAR';
+  const opposite=bullish?'BEARISH':'BULLISH';
+  if(frames.H1.struct.trend===opposite||frames.H4.struct.trend===opposite)return [];
+  const recent=frames.M15.bars.slice(-16), atr=frames.M15.atr;
+  // Require a recent directional structure break AND displacement, followed by a retracement array.
+  const event=frames.M15.struct.lastEvent;
+  const fresh=event && event.dir===type && recent.some(b=>b.t===event.t);
+  const impulse=frames.M15.disp.some(d=>d.dir===type && recent.some(b=>b.t===d.t));
+  const swept=po3.judas?.side===(bullish?'SSL':'BSL') || frames.M15.liq.pools.some(p=>p.side===(bullish?'SSL':'BSL')&&p.swept&&p.reclaimed&&p.sweepT>=recent[0].t);
+  if(!fresh||!impulse||!swept) return [];
+  const gaps=frames.M15.gaps.filter(g=>g.type===type&&g.fill<0.85&&g.t>=recent[0].t&&Math.abs(g.ce-price)<=atr*2 && (bullish?g.ce<=price:g.ce>=price));
+  const gap=gaps.at(-1);if(!gap)return [];
+  const entry=gap.ce;
+  const sl=bullish?Math.min(...recent.map(b=>b.l))-atr*.2:Math.max(...recent.map(b=>b.h))+atr*.2;
+  const risk=bullish?entry-sl:sl-entry;
+  if(!(risk>=3*PIP&&risk<=atr*4))return [];
+  const targets=frames.H1.liq.pools.filter(p=>!p.swept && (bullish?p.price>entry+risk*1.5:p.price<entry-risk*1.5)).map(p=>p.price).sort((a,b)=>bullish?a-b:b-a);
+  if(!targets.length)return [];
+  const t1=targets[0],t2=targets[1]??(bullish?t1+risk:t1-risk);
+  return [{id:`ICT-${side}-${event.t}`,model:'ICT sweep + structure + FVG',side,title:'Confirmed sweep / displacement retracement',entry:+entry.toFixed(5),sl:+sl.toFixed(5),t1:+t1.toFixed(5),t2:+t2.toFixed(5),rr:+(Math.abs(t1-entry)/risk).toFixed(2),riskPips:+(risk/PIP).toFixed(1),t1Pips:+(Math.abs(t1-entry)/PIP).toFixed(1),invalid:sl,window:'Kill zone only; fresh quotes required',thesis:'Recent liquidity reclaim, directional structure and displacement; retrace to an unfilled M15 FVG. Paper setup, not a broker order.'}];
 }
 
 function predictions(ctx, setups) {
-  const { price, d1r, w1, d1, po3, bias, smtData, liq } = ctx;
-  const short = setups.find((s) => s.side === "SHORT");
-  const primaryDir = bias.shortTerm === "BEARISH" ? "DOWN" : bias.shortTerm === "BULLISH" ? "UP" : "RANGE";
-
-  return {
-    intraday: {
-      horizon: "Session / 8 hours",
-      direction: po3.judas?.side === "BSL" ? "DOWN" : primaryDir,
-      from: price,
-      target: short ? short.t1 : 1.15,
-      stretch: 1.1466,
-      invalid: 1.1567,
-      confidence: po3.judas ? 74 : 58,
-      text: po3.judas
-        ? "Judas complete. Algorithm is repricing lower to restock at 1.1500 SSL. A reclaim of 1.1567 would void the session short."
-        : "Waiting on a clean raid of session liquidity before committing a directional call.",
-    },
-    day: {
-      horizon: "24 hours",
-      direction: price > 1.1567 ? "UP" : "DOWN",
-      target: 1.15,
-      stretch: 1.1466,
-      invalid: 1.1585,
-      confidence: 68,
-      text: "Daily candle is a rejection of the 100-day SMA (1.1567). As long as New York settles below that array, the next daily draw is 1.1500 then 1.1466.",
-    },
-    swing: {
-      horizon: "5–15 sessions",
-      direction: d1r.zone === "DISCOUNT" || w1.range.zone === "DISCOUNT" ? "UP" : "DOWN",
-      target: 1.163,
-      stretch: 1.174,
-      invalid: 1.1356,
-      confidence: 63,
-      text: "Weekly/yearly IPDA is still a buy program beneath equilibrium (1.1688 of the 2026 range). The current sell is a discount-building move, not a regime change — unless 1.1356 June low is surrendered.",
-    },
-    scenarios: [
-      {
-        name: "Primary — distribute into 1.1500",
-        odds: 0.52,
-        path: "Hold below 1.1540 → tag 1.1500 → optional sweep of 1.1466 → react",
-      },
-      {
-        name: "Alternate — 1.1500 holds, HTF long",
-        odds: 0.33,
-        path: "Sweep 1.1500, CISD higher, reclaim 1.1535, expand into 1.1567 / 1.1630",
-      },
-      {
-        name: "Risk — dollar squeeze",
-        odds: 0.15,
-        path: "CPI aftershock + DXY through 100.50 sends EUR through 1.1466 toward 1.1356",
-      },
-    ],
-    smt: smtData,
-    levels: {
-      resistance: [1.1545, 1.1563, 1.1567, 1.1585, 1.163],
-      support: [1.1518, 1.15, 1.1466, 1.1422, 1.1356],
-    },
+  const {price,frames,bias}=ctx;
+  const make=(pack,direction,horizon)=>{
+    const up=direction==='UP',down=direction==='DOWN';
+    const levels=pack.liq.pools.filter(p=>!p.swept&&(up?p.price>price:down?p.price<price:false)).map(p=>p.price).sort((a,b)=>up?a-b:b-a);
+    const target=up?(levels[0]??price+pack.atr):(down?(levels[0]??price-pack.atr):price);
+    return {horizon,direction,target,stretch:up?Math.max(levels[1]??target+pack.atr,target):down?Math.min(levels[1]??target-pack.atr,target):price,invalid:up?price-pack.atr:down?price+pack.atr:price,confidence:'—',text:'Conditional structural scenario from closed candles, not a calibrated probability or guaranteed price forecast.'};
   };
+  const dir=x=>x==='BULLISH'?'UP':x==='BEARISH'?'DOWN':'RANGE';
+  return {intraday:make(frames.H1,dir(bias.shortTerm),'Current session'),day:make(frames.D1,dir(frames.D1.struct.trend),'Next daily session'),swing:make(frames.W1,dir(bias.htf),'Multi-session'),scenarios:[],smt:ctx.smtData,levels:{resistance:frames.H1.liq.pools.filter(p=>p.price>price).map(p=>p.price),support:frames.H1.liq.pools.filter(p=>p.price<price).map(p=>p.price)}};
 }
-
-function narrative(ctx, pred, setups, confluence) {
-  const { price, d1r, w1, d1, h4, h1, po3, bias, sessions, meta, smtData } = ctx;
-  const p = pad(price);
-  return {
-    headline: po3.judas
-      ? "Judas complete — IPDA drawing EUR/USD into 1.1500 discount"
-      : `${bias.shortTerm} delivery inside a ${d1r.zone.toLowerCase()} dealing range`,
-    paragraphs: [
-      `Spot ${p}. The 2026 dealing range is 1.1356 (24 Jun) to 1.2019 (27 Jan). Equilibrium sits at 1.1688. Price is ${((1.1688 - price) / PIP).toFixed(0)} pips below that midpoint — a discount print on the yearly IPDA range. Higher-timeframe order flow remains a buy program so long as the June low is respected.`,
-      `The intermediate book is less friendly. April–May supply at 1.168–1.176 rejected the spring rally. July delivered a sell-side run into 1.1422, then a weak reclaim. This week’s range high 1.1585 and the 100-day SMA at 1.1567 are the active premium arrays. Today’s tape engineered buy-side through 1.1563 on the CPI spike (headline 3.4 / core 2.5) and immediately redistributed. That is textbook Power of Three: Asian accumulation, New York manipulation, then distribution.`,
-      `Daily structure is therefore short-term bearish against 1.1567, targeting internal range liquidity at the 1.1500 psychological pool, then the 50-day SMA / demand at 1.1466. A displacement through 1.1466 would open the July low 1.1422 and, in an extreme dollar squeeze, the yearly SSL at 1.1356.`,
-      `The long is not dead — it is waiting. ${smtData?.detail || ""} The correct ICT long is a sell-side raid of 1.1500 (or 1.1466), a bullish CISD/MSS on M15, and an entry inside a discount FVG or unicorn during London or NY AM. Do not buy a falling premium candle just because the yearly range is cheap.`,
-      `Macro tape: DXY hovering the 100 figure, Fed still at 3.75 versus ECB 2.40, energy/Hormuz residual keeping a bid under the dollar. That mix supports a grind lower into discount rather than a V-shape reclaim of 1.16. Time filter: next high-quality window is London open (02:00–05:00 NY) and the 10:00 NY Silver Bullet.`,
-    ],
-    bullets: [
-      `HTF bias: ${bias.htf} · dealing range ${d1r.zone} (${(d1r.pos * 100).toFixed(0)}% of range)`,
-      `LTF bias: ${bias.shortTerm} · last ${d1.struct.lastEvent?.kind || "—"} ${d1.struct.lastEvent?.dir || ""}`,
-      `PO3 phase: ${po3.phase}${po3.judas ? " · " + po3.judas.label : ""}`,
-      `Draw on liquidity: ${pred.intraday.direction === "DOWN" ? "1.1500 SSL then 1.1466" : "1.1567 / 1.1630 BSL"}`,
-      `Confluence ${confluence.score} — ${confluence.notes.join(" · ") || "mixed"}`,
-      `Primary model: ${setups[0]?.model || "stand aside"} ${setups[0]?.side || ""}`,
-    ],
-  };
+function narrative(ctx,pred,setups,confluence) {
+  return {headline:`${ctx.bias.shortTerm} closed-candle structure`,paragraphs:[`EUR/USD ${pad(ctx.price)}. Analysis uses the available venue history; exchange prices may differ from your broker.`,`Range ${pad(ctx.d1r.low)}–${pad(ctx.d1r.high)}; equilibrium ${pad(ctx.d1r.eq)}. Range location is not proof of a buy or sell program.`,`No live economic calendar or macro feed is connected. Check scheduled releases independently; this system cannot certify a news-safe entry.`],bullets:[`HTF: ${ctx.bias.htf}; LTF: ${ctx.bias.shortTerm}`,`PO3: ${ctx.po3.phase}`,`Validated setups: ${setups.length}`,`Confluence ${confluence.score} is a heuristic score, not a win probability.`]};
 }
 
 function framePack(bars, left = 2) {
@@ -675,7 +485,7 @@ function biasFrom(frames, po3) {
   else if ((w === "BEARISH" && d !== "BULLISH") || (d === "BEARISH" && w !== "BULLISH")) htf = "BEARISH";
 
   const spot = frames.M15.last.c;
-  if (spot < 1.1688 && htf === "RANGE") htf = "BULLISH";
+
 
   let shortTerm = h4 === "RANGE" ? h1 : h4;
   if (frames.H1.struct.lastEvent?.kind === "CHOCH") {
@@ -683,7 +493,7 @@ function biasFrom(frames, po3) {
   }
   if (po3?.judas?.side === "BSL" && spot < po3.judas.price - 6 * PIP) shortTerm = "BEARISH";
   if (po3?.judas?.side === "SSL" && spot > po3.judas.price + 6 * PIP) shortTerm = "BULLISH";
-  return { htf, shortTerm, votes: { W1: w, D1: d, H4: h4, H1: h1, M15: frames.M15.struct.trend } };
+  return { htf, shortTerm, votes: { W1: w, D1: d, H4: h4, H1: h1, M30: frames.M30.struct.trend, M15: frames.M15.struct.trend } };
 }
 
 export function executionFrom(setups, price, now, po3, bias, kz) {
@@ -719,13 +529,13 @@ export function executionFrom(setups, price, now, po3, bias, kz) {
       const toSl = (s.side === "SHORT" ? s.sl - price : price - s.sl) / PIP;
       const dead = s.side === "SHORT" ? price >= s.sl : price <= s.sl;
       const tpHit = s.side === "SHORT" ? price <= s.t1 : price >= s.t1;
-      const inTrade = !dead && past > 1 * PIP;
+      const inTrade = false; // Lifecycle is tracked separately; never infer a fill from spot.
       const atEntry = !dead && !tpHit && toEntry <= 3.2;
       return { s, past, toEntry, toTp, toSl, dead, tpHit, inTrade, atEntry };
     })
     .sort((a, b) => a.toEntry - b.toEntry);
 
-  const pick = ranked.find((r) => !r.dead) || ranked[0];
+  const pick = ranked.find((r) => !r.dead && !r.tpHit && (!prefer || r.s.side === prefer)) || ranked[0];
   const s = pick.s;
   let status = "WAIT";
   let label = "WAIT";
@@ -738,10 +548,10 @@ export function executionFrom(setups, price, now, po3, bias, kz) {
     when = "Stand aside";
     note = `Stop ${pad(s.sl)} has been traded. The ${s.side.toLowerCase()} is dead. Wait for the next model.`;
   } else if (pick.tpHit) {
-    status = "TAKE_PROFIT";
-    label = "TAKE PROFIT";
+    status = "INVALID";
+    label = "SETUP EXPIRED";
     when = "Bank T1 now";
-    note = `T1 ${pad(s.t1)} is in. Close at least half. Trail the rest to T2 ${pad(s.t2)}.`;
+    note = "Target has passed; no trade fill is inferred. Wait for a new setup.";
   } else if (pick.inTrade) {
     status = "IN_TRADE";
     label = "IN TRADE — HOLD";
@@ -785,42 +595,30 @@ export function executionFrom(setups, price, now, po3, bias, kz) {
     progress,
     model: s.model,
     title: s.title,
+    setupId: s.id,
     rr: s.rr,
     window: s.window,
   };
 }
 
 function nextWindow(kz) {
-  const order = ["LONDON", "SB_LON", "NY_AM", "SB_NY", "NY_PM", "SB_PM"];
-  const named = {
-    LONDON: "London Kill Zone (02:00 NY)",
-    SB_LON: "London Silver Bullet (03:00 NY)",
-    NY_AM: "New York AM (07:00 NY)",
-    SB_NY: "NY Silver Bullet (10:00 NY)",
-    NY_PM: "New York PM (13:30 NY)",
-    SB_PM: "NY PM Silver Bullet (14:00 NY)",
-  };
-  const t = kz.hour + kz.minute / 60;
-  const starts = { LONDON: 2, SB_LON: 3, NY_AM: 7, SB_NY: 10, NY_PM: 13.5, SB_PM: 14 };
-  let best = null;
-  let wait = 99;
-  for (const id of order) {
-    let d = starts[id] - t;
-    if (d < 0) d += 24;
-    if (d < wait) {
-      wait = d;
-      best = id;
-    }
+  const ids=['LONDON','SB_LON','NY_AM','SB_NY','NY_PM','SB_PM'];
+  const live=kz.active.find(z=>ids.includes(z.id));
+  if(live)return {label:`${live.name} is OPEN (not entry confirmation)`,countdown:'now',id:live.id};
+  const now=kz.asOf||Date.now(),p=nyParts(now),candidates=[];
+  const starts={LONDON:2,SB_LON:3,NY_AM:7,SB_NY:10,NY_PM:13.5,SB_PM:14};
+  for(let day=0;day<8;day++)for(const id of ids){
+    const date=new Date(Date.UTC(+p.year,+p.month-1,+p.day+day));
+    const wall=Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate(),Math.floor(starts[id]),(starts[id]%1)*60);
+    let ts=wall;
+    for(let i=0;i<2;i++){const n=nyParts(ts);const shown=Date.UTC(+n.year,+n.month-1,+n.day,+n.hour,+n.minute);ts+=wall-shown;}
+    if(ts>now&&forexOpen(ts))candidates.push({ts,id});
   }
-  const mins = Math.round(wait * 60);
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  const countdown = h ? `${h}h ${m}m` : `${m}m`;
-  const live = kz.active.find((z) => order.includes(z.id));
-  if (live) return { label: `${live.name} is OPEN`, countdown: "now", id: live.id };
-  return { label: named[best], countdown, id: best };
+  const next=candidates.sort((a,b)=>a.ts-b.ts)[0];
+  if(!next)return {label:'No eligible window',countdown:'—',id:null};
+  const mins=Math.ceil((next.ts-now)/60000),h=Math.floor(mins/60);
+  return {label:`Next ${next.id.replaceAll('_',' ')} window (not a trade ETA)`,countdown:`${h}h ${mins%60}m`,id:next.id};
 }
-
 
 function pickGap(gaps, type, price) {
   const open = (gaps || []).filter((g) => g.type === type && g.fill < 0.85);
@@ -828,150 +626,23 @@ function pickGap(gaps, type, price) {
   return open.slice().sort((a, b) => Math.abs(a.ce - price) - Math.abs(b.ce - price))[0];
 }
 
-function ticket(partial, price) {
-  const side = partial.side;
-  const action = side === "SHORT" ? "SELL" : side === "LONG" ? "BUY" : "FLAT";
-  const order = side === "SHORT" ? "SELL LIMIT" : side === "LONG" ? "BUY LIMIT" : "NO ORDER";
-  const limit = partial.limit;
-  const sl = partial.sl;
-  const tp1 = partial.tp1;
-  const tp2 = partial.tp2;
-  let fill = "REST";
-  if (partial.skip) fill = "SKIP";
-  else if (side === "SHORT" && sl != null && price >= sl) fill = "DEAD";
-  else if (side === "LONG" && sl != null && price <= sl) fill = "DEAD";
-  else if (side === "SHORT" && tp1 != null && price <= tp1) fill = "TP HIT";
-  else if (side === "LONG" && tp1 != null && price >= tp1) fill = "TP HIT";
-  else if (side === "SHORT" && limit != null && price <= limit) fill = "FILLED";
-  else if (side === "LONG" && limit != null && price >= limit) fill = "FILLED";
-  else if (partial.live) fill = "WORKING";
-  const rr =
-    limit != null && sl != null && tp1 != null
-      ? +(Math.abs(tp1 - limit) / Math.max(Math.abs(limit - sl), 0.0002)).toFixed(2)
-      : null;
-  return {
-    ...partial,
-    action,
-    order,
-    fill,
-    rr,
-    limit: limit != null ? +Number(limit).toFixed(5) : null,
-    sl: sl != null ? +Number(sl).toFixed(5) : null,
-    tp1: tp1 != null ? +Number(tp1).toFixed(5) : null,
-    tp2: tp2 != null ? +Number(tp2).toFixed(5) : null,
-    dist: limit != null ? +((Math.abs(price - limit) / PIP).toFixed(1)) : null,
-  };
-}
-
-function buildSessionLimits(ctx, setups, kz) {
-  const price = ctx.price;
-  const { sessions, po3, bias, h1, m15, d1 } = ctx;
-  const asian = sessions.asian;
-  const london = sessions.london;
-  const bearGap = pickGap([...(h1?.gaps || []), ...(m15?.gaps || [])], "BEAR", price);
-  const bullGap = pickGap([...(h1?.gaps || []), ...(m15?.gaps || [])], "BULL", price);
-  const dayRange = d1?.range;
-  const short = setups.find((s) => s.side === "SHORT");
-  const long = setups.find((s) => s.side === "LONG");
-  const daySell = short || {
-    entry: bearGap?.ce || dayRange?.oteSell?.[0] || 1.1534,
-    sl: Math.max(po3.judas?.price || price + 0.0035, 1.1563),
-    t1: 1.15,
-    t2: 1.1466,
-  };
-  const dayBuy = long || {
-    entry: bullGap?.ce || dayRange?.oteBuy?.[0] || 1.1502,
-    sl: 1.1461,
-    t1: 1.1567,
-    t2: 1.163,
-  };
-  const sessionBias = bias.shortTerm === "BEARISH" || po3.judas?.side === "BSL" ? "SHORT" : "LONG";
-  const primary = sessionBias === "SHORT" ? daySell : dayBuy;
-  const tt = (kz?.hour || 0) + (kz?.minute || 0) / 60;
-  const live = {
-    ASIAN: tt >= 20 || tt < 2,
-    LONDON: tt >= 2 && tt < 7,
-    NY_AM: tt >= 7 && tt < 12,
-    NY_PM: tt >= 12 && tt < 17,
-  };
-  const ash = asian?.high;
-  const asl = asian?.low;
-  const londonHigh = london?.high;
-  const londonLow = london?.low;
-
-  const daily = ticket({
-    id: "DAILY", session: "Daily", clock: "Sun 17:00 – Fri 17:00 NY",
-    side: sessionBias, limit: primary.entry, sl: primary.sl, tp1: primary.t1, tp2: primary.t2, live: true,
-    why: sessionBias === "SHORT"
-      ? "Day ticket: sell-limit the premium array. Invalid if NY settles above the stop."
-      : "Day ticket: buy-limit the discount array. Invalid if NY settles below the stop.",
-  }, price);
-
-  const asianCard = ticket({
-    id: "ASIAN", session: "Asian", clock: "20:00 – 02:00 NY",
-    side: "FLAT", skip: true, limit: null, sl: null, tp1: null, tp2: null, live: live.ASIAN,
-    why: ash
-      ? "Map only. Box " + asl.toFixed(5) + " – " + ash.toFixed(5) + ". Do not fill here. Use the high/low as London Judas liquidity."
-      : "Asian is for building the range. No limit during this window.",
-  }, price);
-
-  const londonLimit = sessionBias === "SHORT" ? (bearGap?.ce || ash || daySell.entry) : (bullGap?.ce || asl || dayBuy.entry);
-  const londonSl = sessionBias === "SHORT"
-    ? Math.max(ash || 0, po3.judas?.price || 0, londonHigh || 0) + 0.00025
-    : Math.min(asl || 99, londonLow || 99, dayBuy.sl) - 0.00025;
-  const londonCard = ticket({
-    id: "LONDON", session: "London", clock: "02:00 – 05:00 NY · Silver Bullet 03:00",
-    side: sessionBias, limit: londonLimit, sl: londonSl,
-    tp1: sessionBias === "SHORT" ? Math.min(asl || 1.15, 1.15) : Math.max(ash || 1.1563, 1.1563),
-    tp2: sessionBias === "SHORT" ? 1.1466 : 1.163, live: live.LONDON,
-    why: sessionBias === "SHORT"
-      ? "Sell limit at the London premium / Asian high. Let Judas run buy-side first, then rest in the FVG."
-      : "Buy limit at the London discount / Asian low after sell-side is raided.",
-  }, price);
-
-  const nyAmLimit = sessionBias === "SHORT" ? (bearGap?.ce || londonHigh || daySell.entry) : (bullGap?.ce || londonLow || dayBuy.entry);
-  const nyAmCard = ticket({
-    id: "NY_AM", session: "New York AM", clock: "07:00 – 10:00 NY · Silver Bullet 10:00",
-    side: sessionBias, limit: nyAmLimit,
-    sl: sessionBias === "SHORT"
-      ? Math.max(daySell.sl, londonHigh || 0, po3.judas?.price || 0) + 0.0001
-      : Math.min(dayBuy.sl, londonLow || 99) - 0.0001,
-    tp1: sessionBias === "SHORT" ? 1.15 : 1.1567,
-    tp2: sessionBias === "SHORT" ? 1.1466 : 1.163, live: live.NY_AM,
-    why: sessionBias === "SHORT"
-      ? "True-day sell. Rest the sell limit in the NY AM bearish FVG. Target 1.1500 SSL."
-      : "True-day buy. Rest the buy limit in the NY AM bullish FVG after a 1.1500 raid.",
-  }, price);
-
-  const delivered = sessionBias === "SHORT" ? price <= 1.1512 : price >= 1.156;
-  const nyPm = delivered
-    ? ticket({
-        id: "NY_PM", session: "New York PM", clock: "13:30 – 16:00 NY",
-        side: sessionBias === "SHORT" ? "LONG" : "SHORT",
-        limit: sessionBias === "SHORT" ? 1.1502 : 1.1563,
-        sl: sessionBias === "SHORT" ? 1.1461 : 1.1588,
-        tp1: sessionBias === "SHORT" ? 1.1534 : 1.152,
-        tp2: sessionBias === "SHORT" ? 1.1567 : 1.15, live: live.NY_PM,
-        why: "Day target is in. Afternoon is for banking or a mean-reversion limit, not a hero add.",
-      }, price)
-    : ticket({
-        id: "NY_PM", session: "New York PM", clock: "13:30 – 16:00 NY",
-        side: sessionBias, limit: primary.entry, sl: primary.sl, tp1: primary.t1, tp2: primary.t2, live: live.NY_PM,
-        why: sessionBias === "SHORT"
-          ? "If 1.1500 is still open, keep the same sell limit working into London close / NY PM."
-          : "If the discount buy has not filled, leave the buy limit on for the PM raid.",
-      }, price);
-
-  return [daily, asianCard, londonCard, nyAmCard, nyPm];
+function buildSessionLimits(ctx,setups,kz) {
+  return ['Daily','Asian','London','New York AM','New York PM'].map((session,i)=>{
+    const ids=['DAILY','ASIAN','LONDON','NY_AM','NY_PM'];
+    const setup=setups[0], live=i!==1&&forexOpen(ctx.now)&&kz.active.some(z=>z.id===ids[i]);
+    return {session,clock:'New York local time',action:setup?(setup.side==='LONG'?'BUY':'SELL'):'FLAT',order:setup?`${setup.side==='LONG'?'BUY':'SELL'} LIMIT (PAPER)`:'NO ORDER',fill:setup?'UNCONFIRMED':'SKIP',live,limit:setup?.entry??null,sl:setup?.sl??null,tp1:setup?.t1??null,tp2:setup?.t2??null,rr:setup?.rr??null,dist:setup?+(Math.abs(setup.entry-ctx.price)/PIP).toFixed(1):null,why:'Reference levels only. No broker fill is inferred; Asian window is observation only.'};
+  });
 }
 
 export function analyze(market, now = Date.now()) {
+  const closed = Object.fromEntries(Object.entries(market.frames).map(([tf,bars])=>[tf,bars.filter(b=>!b.provisional&&b.t+TF_MS[tf]<=now)]));
   const frames = {
-    M15: framePack(market.frames.M15, 2),
-    H1: framePack(market.frames.H1, 2),
-    H4: framePack(market.frames.H4, 3),
-    D1: framePack(market.frames.D1, 2),
-    W1: framePack(market.frames.W1, 1),
+    M15: framePack(closed.M15, 2),
+    M30: framePack(closed.M30, 2),
+    H1: framePack(closed.H1, 2),
+    H4: framePack(closed.H4, 3),
+    D1: framePack(closed.D1, 2),
+    W1: framePack(closed.W1, 1),
   };
   const price = market.meta.spot || frames.M15.last.c;
   const sessions = sessionsFrom(market.frames.M15);
@@ -983,14 +654,11 @@ export function analyze(market, now = Date.now()) {
   };
   const po3 = powerOfThree(sessions, price, dayBar);
   const bias = biasFrom(frames, po3);
-  const smtData = smt(market.frames.D1, market.gbpDaily);
-  const d1rYear = {
-    high: 1.2019,
-    low: 1.1356,
-    eq: 1.16875,
-    pos: (price - 1.1356) / (1.2019 - 1.1356),
-    zone: price >= 1.16875 ? "PREMIUM" : "DISCOUNT",
-  };
+  const common = closed.D1.filter(b => market.gbpDaily?.some(g => g.t===b.t && g.t+TF_MS.D1<=now));
+  const smtData = common.length>=8 ? smt(common,common.map(b=>market.gbpDaily.find(g=>g.t===b.t))) : null;
+  const rangeBars=closed.D1.slice(-252);
+  const high=Math.max(...rangeBars.map(b=>b.h)),low=Math.min(...rangeBars.map(b=>b.l)),eq=(high+low)/2;
+  const d1rYear={high,low,eq,pos:(price-low)/Math.max(high-low,PIP),zone:price>=eq?'PREMIUM':'DISCOUNT'};
 
   const ctx = {
     price,
@@ -1033,8 +701,12 @@ export function analyze(market, now = Date.now()) {
   const setups = buildSetups(ctx);
   const pred = predictions(ctx, setups);
   const story = narrative(ctx, pred, setups, confluence);
-  const execution = executionFrom(setups, price, now, po3, bias, kzNow);
-  const limits = buildSessionLimits(ctx, setups, kzNow);
+  const health=marketHealth(market,now);
+  const execution = executionFrom(health.ok ? setups : [], price, now, po3, bias, kzNow);
+  if(!health.ok) { execution.label="SIGNALS BLOCKED"; execution.note=health.reasons.join(" · "); }
+  const limits = buildSessionLimits(ctx, health.ok ? setups : [], kzNow);
+  const directions = directionsFrom(frames, price, kzNow);
+  const directionHealth=dataHealth(market,now);
 
   const pdArrays = collectPD(frames, price);
 
@@ -1058,24 +730,21 @@ export function analyze(market, now = Date.now()) {
       D1: frames.D1.struct,
       H4: frames.H4.struct,
       H1: frames.H1.struct,
+      M30: frames.M30.struct,
       M15: frames.M15.struct,
     },
     frames,
     pdArrays,
-    setups,
+    setups: health.ok ? setups : [],
+    health,
+    directionHealth,
     execution,
     limits,
+    directions,
     predictions: pred,
     narrative: story,
     smt: smtData,
-    keyLevels: uniqueLevels([
-      ...pred.levels.support.map((p) => ({ price: p, kind: "SUPPORT" })),
-      ...pred.levels.resistance.map((p) => ({ price: p, kind: "RESISTANCE" })),
-      { price: 1.1466, kind: "SMA50 / demand" },
-      { price: 1.1567, kind: "SMA100 / premium" },
-      { price: 1.163, kind: "SMA200" },
-      { price: 1.1688, kind: "2026 EQ" },
-    ]),
+    keyLevels: uniqueLevels([...frames.H1.liq.pools.map(p=>({price:p.price,kind:p.side})),{price:d1rYear.eq,kind:'Rolling range EQ'}]),
   };
 }
 
@@ -1111,6 +780,94 @@ function uniqueLevels(list) {
   });
 }
 
+/* ── Multi-timeframe direction board ─────────────────────────────────────
+   Reads the strategy's own structure on M15 / M30 / H1 / H4 / D1 / W1 and
+   publishes, per timeframe: direction, confidence, the liquidity draw,
+   how long until a trade can be taken (next kill zone) and how long the
+   move should take to reach its target (ATR-scaled bar projection). */
+
+const DIR_TF = [
+  { tf: "M15", label: "15 MIN", hours: 0.25 },
+  { tf: "M30", label: "30 MIN", hours: 0.5 },
+  { tf: "H1", label: "1 HOUR", hours: 1 },
+  { tf: "H4", label: "4 HOUR", hours: 4 },
+  { tf: "D1", label: "1 DAY", hours: 24 },
+  { tf: "W1", label: "1 WEEK", hours: 168 },
+];
+
+const DIR_KZ_ORDER = ["LONDON", "SB_LON", "NY_AM", "SB_NY", "NY_PM", "SB_PM"];
+const DIR_KZ_STARTS = { LONDON: 2, SB_LON: 3, NY_AM: 7, SB_NY: 10, NY_PM: 13.5, SB_PM: 14 };
+
+// Structural magnets used to size each timeframe's next draw.
+const DIR_LEVELS = [];
+
+function fmtHours(h) {
+  if (h == null || !Number.isFinite(h) || h <= 0) return "—";
+  if (h < 1) {
+    const m = Math.max(1, Math.round((h * 60) / 5) * 5);
+    return m >= 60 ? "~1h" : `~${m}m`;
+  }
+  const d = Math.floor(h / 24);
+  const hh = Math.round(h % 24);
+  if (d >= 1) {
+    if (hh >= 24) return `~${d + 1}d`;
+    return hh === 0 ? `~${d}d` : `~${d}d ${hh}h`;
+  }
+  return hh <= 0 ? "~1h" : `~${hh}h`;
+}
+
+function frameTarget(pack, price, bias) {
+  const pools = pack.liq?.pools || [];
+  if (bias === "BUY") {
+    const cands = [
+      ...pools.filter((p) => p.side === "BSL").map((p) => p.price),
+      pack.range?.high,
+      ...DIR_LEVELS,
+    ].filter((p) => p != null && Number.isFinite(p) && p > price + PIP);
+    const above = cands.sort((a, b) => a - b)[0];
+    return above ?? price + pack.atr;
+  }
+  if (bias === "SELL") {
+    const cands = [
+      ...pools.filter((p) => p.side === "SSL").map((p) => p.price),
+      pack.range?.low,
+      ...DIR_LEVELS,
+    ].filter((p) => p != null && Number.isFinite(p) && p < price - PIP);
+    const below = cands.sort((a, b) => b - a)[0];
+    return below ?? price - pack.atr;
+  }
+  return pack.range?.eq ?? price;
+}
+
+function frameNote(pack, trend, target, bias) {
+  const zone = (pack.range?.zone || "equilibrium").toLowerCase();
+  const ev = pack.struct?.lastEvent;
+  const sig = ev ? ` (${ev.kind} ${ev.dir})` : "";
+  const tgt = target != null ? target.toFixed(5) : "equilibrium";
+  if (trend === "BULLISH") return `Bullish structure${sig} — drawing ${zone} liquidity toward ${tgt}.`;
+  if (trend === "BEARISH") return `Bearish structure${sig} — delivering ${zone} toward ${tgt}.`;
+  return `No decisive structure — RANGE / WAIT. No directional entry instruction.`;
+}
+
+export function directionsFrom(frames, price, kz) {
+  const now=kz?.asOf||Date.now();
+  return DIR_TF.map(({tf,label})=>{
+    const pack=frames[tf];if(!pack?.bars?.length)return null;
+    const bars=pack.bars,last=bars.at(-1),trend=pack.struct.trend;
+    const prior=bars[Math.max(0,bars.length-9)],momentum=(last.c-prior.c)/Math.max(pack.atr,PIP);
+    const event=pack.struct.lastEvent, eventAge=event?bars.length-1-event.i:Infinity;
+    let bias='FLAT',reason='No recent directional structure confirmation';
+    if(trend==='BULLISH'&&eventAge<=12&&momentum>.25){bias='BUY';reason='Bullish structure and 8-bar momentum agree';}
+    else if(trend==='BEARISH'&&eventAge<=12&&momentum<-.25){bias='SELL';reason='Bearish structure and 8-bar momentum agree';}
+    else if(trend!=='RANGE'&&eventAge<=12)reason='Structure / momentum conflict or weak momentum — WAIT';
+    if((bias==='BUY'&&pack.struct.lastLow&&price<pack.struct.lastLow.price)||(bias==='SELL'&&pack.struct.lastHigh&&price>pack.struct.lastHigh.price)){bias='FLAT';reason='Live price invalidates the last confirmed swing — wait for candle close';}
+    if(last.t+TF_MS[tf]>now||now-(last.t+TF_MS[tf])>TF_MS[tf]+60000){bias='FLAT';reason='Closed-candle analysis stale — WAIT';}
+    const target=bias==='FLAT'?null:frameTarget(pack,price,bias);
+    const closedAt=last.t+TF_MS[tf];
+    return {tf,label,trend,bias,confidence:'not probability-rated',target,targetLabel:target===null?'—':target.toFixed(5),finishHours:null,finishLabel:'Not predictable',entryHours:null,entryLabel:'Separate setup required',closedAt,nextClose:closedAt+TF_MS[tf],momentum:+momentum.toFixed(2),note:reason+'. Direction is not an entry order.'};
+  }).filter(Boolean);
+}
+
 export function killZones(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
@@ -1125,7 +882,7 @@ export function killZones(now = new Date()) {
   const minute = +get("minute");
   const t = hour + minute / 60;
   const zones = [
-    { id: "ASIAN", name: "Asian Range", start: 20, end: 24, note: "Build the box. Do not hunt entries." },
+    { id: "ASIAN", name: "Asian Range", start: 20, end: 2, note: "Build the box. Do not hunt entries." },
     { id: "LONDON", name: "London Kill Zone", start: 2, end: 5, note: "Judas + first displacement." },
     { id: "SB_LON", name: "London Silver Bullet", start: 3, end: 4, note: "60-minute surgical window." },
     { id: "NY_AM", name: "New York AM", start: 7, end: 10, note: "True day direction, news raids." },
@@ -1139,10 +896,11 @@ export function killZones(now = new Date()) {
     return t >= z.start && t < z.end;
   };
   return {
+    asOf: +new Date(now),
     ny: `${get("weekday")} ${get("hour")}:${get("minute")}:${get("second")} NY`,
     hour,
     minute,
-    active: zones.filter(wraps),
-    zones: zones.map((z) => ({ ...z, on: wraps(z) })),
+    active: forexOpen(+new Date(now)) ? zones.filter(wraps) : [],
+    zones: zones.map((z) => ({ ...z, on: forexOpen(+new Date(now)) && wraps(z) })),
   };
 }

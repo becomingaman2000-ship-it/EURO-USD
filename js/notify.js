@@ -1,3 +1,4 @@
+import { marketHealth } from './safety.js';
 /* Email alerts when a setup is fit to enter.
    Uses FormSubmit (no API key). First mail asks Gmail to confirm the inbox. */
 
@@ -35,17 +36,18 @@ function fmt(n) {
 
 export function buildAlert(ex, market) {
   const act = actionOf(ex.side);
+  const instrument=market?.meta?.proxy?"EUR/USDT PROXY (not broker EUR/USD)":"EUR/USD";
   const spot = fmt(market?.meta?.spot ?? ex.entry);
   const when = new Date().toLocaleString("en-GB", {
     timeZone: "Africa/Johannesburg",
     hour12: false,
   });
   return {
-    subject: `IPDA Desk: ${ex.status === "ENTER" ? "ENTER" : ex.status} ${act} EUR/USD @ ${fmt(ex.entry)}`,
+    subject: `IPDA Desk: ${ex.status === "ENTER" ? "ENTER" : ex.status} ${act} ${instrument} @ ${fmt(ex.entry)}`,
     action: act,
     status: ex.status,
     label: (ex.label || "").replace("LONG", "BUY").replace("SHORT", "SELL"),
-    pair: "EUR/USD",
+    pair: instrument,
     spot,
     entry: fmt(ex.entry),
     stop: fmt(ex.sl),
@@ -91,7 +93,7 @@ async function postFormSubmit(payload) {
     message:
       `${payload.label}\n` +
       `ACTION: ${payload.action}\n` +
-      `EUR/USD spot ${payload.spot}\n` +
+      `${payload.pair} spot ${payload.spot}\n` +
       `Enter ${payload.entry}  |  Stop ${payload.stop}\n` +
       `TP1 ${payload.tp1}  |  TP2 ${payload.tp2}\n` +
       `R:R ${payload.rr}  |  ${payload.model}\n` +
@@ -114,6 +116,8 @@ async function postFormSubmit(payload) {
 }
 
 export async function sendAlert(ex, market, { force = false } = {}) {
+  const health=marketHealth(market);
+  if(!health.ok)throw new Error(`Alert blocked: ${health.reasons.join(" · ")}`);
   const payload = buildAlert(ex, market);
   const rec = {
     key: `${payload.action}-${payload.entry}-${payload.tp1}`,
