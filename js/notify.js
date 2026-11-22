@@ -7,6 +7,8 @@ const KEY_ON = "ipda-mail-on";
 const KEY_LAST = "ipda-mail-last";
 const KEY_ARMED = "ipda-mail-armed";
 const COOLDOWN_MS = 40 * 60 * 1000;
+let sendingEntry=false;
+let sendingTest=false;
 
 export function mailEnabled() {
   return localStorage.getItem(KEY_ON) !== "0";
@@ -102,7 +104,11 @@ async function postFormSubmit(payload) {
       payload.desk,
   };
 
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),15000);
+  try {
   const res = await fetch(`https://formsubmit.co/ajax/${ALERT_EMAIL}`, {
+    signal:controller.signal,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -110,12 +116,23 @@ async function postFormSubmit(payload) {
     },
     body: JSON.stringify(body),
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.message || String(res.status));
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json || !(json.success===true || json.success==="true")) throw new Error(json?.message || `Email service did not confirm acceptance (HTTP ${res.status})`);
   return json;
+  } finally {clearTimeout(timer);}
+}
+
+export async function sendTestAlert() {
+  if(sendingTest)return {skipped:true};
+  sendingTest=true;
+  try {
+    const result=await postFormSubmit({subject:'IPDA Desk — email delivery TEST (not a trade)',action:'TEST ONLY',label:'Email connection test — NOT a trading signal',pair:'No trade',spot:'—',entry:'—',stop:'—',tp1:'—',tp2:'—',rr:'—',model:'Delivery test only',window:'Not applicable',pipsToEntry:'—',pipsToTp:'—',note:'You requested this test from the dashboard. No valid live signal is implied. Check for a FormSubmit activation email and confirm it if requested.',source:'User-requested email test',time:new Date().toISOString(),desk:'https://becomingaman2000-ship-it.github.io/EURO-USD/'});
+    return {ok:true,result};
+  } finally {sendingTest=false;}
 }
 
 export async function sendAlert(ex, market, { force = false } = {}) {
+  if(ex?.status!=='ENTER')throw new Error('Entry alerts require an observed ENTER signal');
   const health=marketHealth(market);
   if(!health.ok)throw new Error(`Alert blocked: ${health.reasons.join(" · ")}`);
   const payload = buildAlert(ex, market);
@@ -138,7 +155,8 @@ export async function sendAlert(ex, market, { force = false } = {}) {
 }
 
 export async function maybeNotify(ex, market, onStatus) {
-  if (!mailEnabled()) return;
+  if (!mailEnabled()) {onStatus?.("off","Email alerts are OFF on this device");return;}
+  if(sendingEntry)return;
   if (!ex) return;
   if (ex.status !== "ENTER") {
     sessionStorage.setItem(KEY_ARMED, "0");
@@ -150,15 +168,16 @@ export async function maybeNotify(ex, market, onStatus) {
     if (prev && prev.key === key) return;
   }
   try {
-    onStatus?.("sending", "Sending entry alert…");
+    sendingEntry=true;
+    onStatus?.("sending", "Submitting entry alert…");
     const out = await sendAlert(ex, market);
     if (out.skipped) {
       onStatus?.("idle", `Last alert ${new Date(out.last.at).toLocaleTimeString()} (cooldown)`);
       return;
     }
     sessionStorage.setItem(KEY_ARMED, "1");
-    onStatus?.("sent", `Alert mailed to ${ALERT_EMAIL}`);
+    onStatus?.("sent", `Email service accepted the alert for ${ALERT_EMAIL}; inbox delivery not verified`);
   } catch (err) {
     onStatus?.("error", err.message || "Mail failed");
-  }
+  } finally {sendingEntry=false;}
 }

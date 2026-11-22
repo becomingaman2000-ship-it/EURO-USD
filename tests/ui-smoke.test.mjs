@@ -19,6 +19,12 @@ test('UI boots in blocked/offline mode with all DOM IDs and canvas render paths 
     assert.match(elements.get('#predGrid').innerHTML,/UNVERIFIED/);
     handlers.get('confirmCalendar:click')();assert.equal(elements.get('#exEntry').textContent,'—');
     handlers.get('resetSignals:click')();assert.equal(elements.get('#exState').textContent,'SIGNALS BLOCKED');
+    assert.equal(elements.get('#mailToggle').checked,true);
+    elements.get('#mailToggle').checked=false;handlers.get('mailToggle:change')();
+    assert.match(elements.get('#mailStatus').textContent,/OFF/);
+    await handlers.get('mailTest:click')();
+    assert.equal(elements.get('#mailTest').disabled,false);
+    assert.match(elements.get('#mailStatus').textContent,/outage/);
     for(const fn of timers.slice(0,2))fn();
     await new Promise(resolve=>original.setTimeout(resolve,0));
     assert.match(elements.get('#feedStatus').textContent,/blocked|unavailable|stale|required/i);

@@ -63,3 +63,7 @@ npm test
 Server binds `0.0.0.0:4173` and serves `public/`. Keys 1–6 select M15/M30/H1/H4/D1/W1. Root, `public/`, and `docs/` contain synchronized deployment files (including `js/safety.js`). Static GitHub Pages hosting uses direct browser-to-exchange requests; there is no server-side feed proxy or secret API key.
 
 Tests cover safety gates, DST/weekends, candle validity, feed-source isolation (mocked), adaptive forecasts, closed-candle selection, paper lifecycle, synthetic backtest rejection, and UI boot/offline rendering through a DOM/canvas harness. They do not prove real external connectivity or browser CORS compatibility. Follow `LIVE-VERIFICATION.md` before relying on the live display.
+
+## Email controls and delivery
+
+The Email alerts switch restores and saves the browser's setting. It is ON by default unless disabled on that device. **Send test** is an explicit non-trading test and works even when market conditions block entry alerts; it does not turn automatic alerts on or imply a live setup. No test email is sent automatically. The service must return a successful acceptance response before the UI reports acceptance. Requests time out after 15 seconds and overlapping automatic submissions are suppressed. Acceptance is not proof of inbox delivery: check Spam and any FormSubmit activation message for `becomingaman2000@gmail.com`. Browser-based alerts require the page to remain active and an observed ENTER signal on healthy data; a bullish/bearish bias alone sends no email.

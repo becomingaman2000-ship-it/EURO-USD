@@ -9,7 +9,7 @@ import { getMarket, hydrateFromLive, MARKET_META } from "./data.js";
 import { analyze, killZones, executionFrom, directionsFrom } from "./ict.js";
 import { DeskChart } from "./chart.js";
 import { loadLiveBook, startStream } from "./live.js";
-import { mailEnabled, setMailEnabled, maybeNotify, sendAlert, lastMail, ALERT_EMAIL } from "./notify.js";
+import { mailEnabled, setMailEnabled, maybeNotify, sendTestAlert, lastMail, ALERT_EMAIL } from "./notify.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -535,6 +535,21 @@ function boot() {
   setInterval(()=>{if(!attaching&&state.live)attachLive();},60000);
   $('#confirmCalendar').addEventListener('click',()=>{newsCheckedUntil=Date.now()+30*60000;if(state.market)refresh(state.market,{preserve:true,soft:true});});
   $('#resetSignals').addEventListener('click',()=>{signalTracker.reset();if(state.market)refresh(state.market,{preserve:true,soft:true});});
+  const toggle=$('#mailToggle'),testButton=$('#mailTest');
+  toggle.checked=mailEnabled();
+  const showMailSetting=()=>setMailStatus(toggle.checked?'idle':'off',toggle.checked?'Alerts ON — waiting for a valid observed entry. Keep this page open; activation may be required.':'Email alerts are OFF on this device');
+  showMailSetting();
+  toggle.addEventListener('change',()=>{setMailEnabled(toggle.checked);showMailSetting();});
+  testButton.addEventListener('click',async()=>{
+    if(testButton.disabled)return;
+    testButton.disabled=true;
+    setMailStatus('sending','Submitting a TEST email — not a trading signal…');
+    try {
+      const out=await sendTestAlert();
+      if(!out.skipped)setMailStatus('sent',`Test request accepted for ${ALERT_EMAIL}. Check Inbox/Spam and confirm any FormSubmit activation message. Delivery is not verified here.`);
+    }catch(err){setMailStatus('error',err.name==='AbortError'?'Email request timed out; check your inbox before retrying.':err.message||'Test request failed');}
+    finally{testButton.disabled=false;}
+  });
   $("#yearNow").textContent = new Date().getFullYear();
   requestAnimationFrame(() => $("#boot")?.classList.add("off"));
 }
