@@ -12,6 +12,7 @@ function writeStore(scope,key,value){try{globalThis[scope].setItem(key,value);}c
 const COOLDOWN_MS = 40 * 60 * 1000;
 let sendingEntry=false;
 let sendingTest=false;
+let failedEntry=null;
 
 export function mailEnabled() {
   return readStore('localStorage',KEY_ON) !== "0";
@@ -77,7 +78,6 @@ async function postFormSubmit(payload) {
     _captcha: "false",
     _honey: "",
     name: "IPDA Desk",
-    email: "ipda-desk@noreply.local",
     Action: payload.action,
     Status: payload.label,
     Pair: payload.pair,
@@ -113,15 +113,18 @@ async function postFormSubmit(payload) {
   const res = await fetch(`https://formsubmit.co/ajax/${ALERT_EMAIL}`, {
     signal:controller.signal,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(body),
+    // URL-encoded form data avoids the JSON Content-Type CORS preflight.
+    // Still require a readable success response; never use no-cors/opaque "success".
+    headers: { Accept: "application/json" },
+    body: new URLSearchParams(body),
   });
   const json = await res.json().catch(() => null);
   if (!res.ok || !json || !(json.success===true || json.success==="true")) throw new Error(json?.message || `Email service did not confirm acceptance (HTTP ${res.status})`);
   return json;
+  } catch(error) {
+    if(error.name==='AbortError')throw new Error('Email request timed out. Delivery is unknown; check Inbox/Spam before retrying. You can use “Send test on provider page” below.');
+    if(error instanceof TypeError)throw new Error('Could not reach the email service from this browser (network, VPN, filtering, or CORS). Delivery is unconfirmed. Use “Send test on provider page” below to open the service directly.');
+    throw error;
   } finally {clearTimeout(timer);}
 }
 
@@ -170,6 +173,8 @@ export async function maybeNotify(ex, market, onStatus) {
     const key = `${actionOf(ex.side)}-${fmt(ex.entry)}-${fmt(ex.t1)}`;
     if (prev && prev.key === key) return;
   }
+  const entryKey=`${market?.meta?.source}-${ex.side}-${fmt(ex.entry)}-${fmt(ex.t1)}`;
+  if(failedEntry?.key===entryKey&&Date.now()-failedEntry.at<60000){onStatus?.('error',failedEntry.message);return;}
   try {
     sendingEntry=true;
     onStatus?.("sending", "Submitting entry alert…");
@@ -178,9 +183,11 @@ export async function maybeNotify(ex, market, onStatus) {
       onStatus?.("idle", `Last alert ${new Date(out.last.at).toLocaleTimeString()} (cooldown)`);
       return;
     }
+    failedEntry=null;
     writeStore('sessionStorage',KEY_ARMED,'1');
     onStatus?.("sent", `Email service accepted the alert for ${ALERT_EMAIL}; inbox delivery not verified`);
   } catch (err) {
-    onStatus?.("error", err.message || "Mail failed");
+    failedEntry={key:entryKey,at:Date.now(),message:err.message||"Email service request failed"};
+    onStatus?.("error", failedEntry.message);
   } finally {sendingEntry=false;}
 }

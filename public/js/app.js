@@ -8,7 +8,7 @@ import { hydrateFromLive, MARKET_META } from "./data.js";
 import { analyze, killZones, executionFrom, directionsFrom } from "./ict.js";
 import { DeskChart } from "./chart.js";
 import { loadLiveBook, startStream } from "./live.js";
-import { mailEnabled, setMailEnabled, maybeNotify, sendTestAlert, lastMail, ALERT_EMAIL } from "./notify.js";
+import { mailEnabled, setMailEnabled, maybeNotify, sendTestAlert, lastMail, ALERT_EMAIL } from "./notify.js?v=email-transport-5";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];

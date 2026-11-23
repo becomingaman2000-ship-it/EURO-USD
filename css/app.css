@@ -733,3 +733,8 @@ main { padding: 22px 28px 80px; display: flex; flex-direction: column; gap: 36px
 .dir-head { display: block; }
 .dir-head > p { margin-top: 10px; }
 @media(max-width:680px){ .mast { grid-template-columns: 1fr auto; padding: 16px; } .mast .brand { grid-column: 1/-1; } .last .spot { font-size: 30px; } }
+
+.email-help { padding: 0 16px 16px; color: var(--mute); font-size: 14px; line-height: 1.6; }
+.email-help p { margin: 10px 0; }
+.email-help .safety-button { width: 100%; }
+.mail-status[data-state="error"] { color: var(--down); overflow-wrap: anywhere; }

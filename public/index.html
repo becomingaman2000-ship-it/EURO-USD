@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/app.css?v=simple-auto-4" />
+  <link rel="stylesheet" href="css/app.css?v=email-transport-5" />
 </head>
 <body>
   <div class="grain"></div>
@@ -144,6 +144,18 @@
         <em id="mailAddr">becomingaman2000@gmail.com</em>
         <button type="button" id="mailTest" class="ghost">Send test</button>
         <span id="mailStatus" class="mail-status">Checking this device’s alert setting…</span>
+      </div>
+      <div class="email-help">
+        <p>First use may require an activation email from FormSubmit. Check Inbox and Spam. Request accepted does not mean delivered.</p>
+        <form id="mailProviderTest" action="https://formsubmit.co/becomingaman2000@gmail.com" method="POST" target="_blank" rel="noopener noreferrer">
+          <input type="hidden" name="_subject" value="IPDA Desk — user-requested TEST / activation (not a trade)" />
+          <input type="hidden" name="_template" value="table" />
+          <input type="hidden" name="_captcha" value="false" />
+          <input type="hidden" name="name" value="IPDA Desk" />
+          <input type="hidden" name="message" value="You requested this email test by opening the provider directly. This is NOT a trading signal. Confirm any FormSubmit activation email if required." />
+          <button class="safety-button" type="submit">Send test on provider page ↗</button>
+        </form>
+        <p>This opens the provider in a new tab and submits one test. It can avoid an in-page CORS failure, but cannot bypass network blocks or guarantee automatic alert delivery.</p>
       </div>
       </details>
     </section>
@@ -328,6 +340,6 @@
     </p>
   </footer>
 
-  <script type="module" src="js/app.js?v=simple-auto-4"></script>
+  <script type="module" src="js/app.js?v=email-transport-5"></script>
 </body>
 </html>

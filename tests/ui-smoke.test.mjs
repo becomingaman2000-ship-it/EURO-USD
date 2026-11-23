@@ -27,6 +27,7 @@ test('UI boots in blocked/offline mode with all DOM IDs and canvas render paths 
     await handlers.get('mailTest:click')();
     assert.equal(elements.get('#mailTest').disabled,false);
     assert.match(elements.get('#mailStatus').textContent,/outage/);
+    assert.match(html,/id="mailProviderTest" action="https:\/\/formsubmit.co\/becomingaman2000@gmail.com" method="POST" target="_blank"/);
     for(const fn of timers.slice(0,2))fn();
     await new Promise(resolve=>original.setTimeout(resolve,0));
     assert.match(elements.get('#feedStatus').textContent,/blocked|unavailable|stale|required/i);
