@@ -1,4 +1,4 @@
-import { marketHealth } from './safety.js';
+import { marketHealth } from './safety.js?v=original-setups-6';
 /* Email alerts when a setup is fit to enter.
    Uses FormSubmit (no API key). First mail asks Gmail to confirm the inbox. */
 
@@ -37,7 +37,7 @@ function actionOf(side) {
 }
 
 function fmt(n) {
-  return Number.isFinite(+n) ? Number(n).toFixed(5) : "—";
+  return n!=null && Number.isFinite(+n) ? Number(n).toFixed(5) : "—";
 }
 
 export function buildAlert(ex, market) {

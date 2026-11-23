@@ -1,14 +1,14 @@
-import { marketHealth, dataHealth, createSignalTracker } from './safety.js';
+import { marketHealth, dataHealth, createSignalTracker } from './safety.js?v=original-setups-6';
 const signalTracker=createSignalTracker();
 let attaching=false;
 let feedMode="AUTO";
 let feedRequest=0;
 let retryTimer=null;
 import { hydrateFromLive, MARKET_META } from "./data.js";
-import { analyze, killZones, executionFrom, directionsFrom } from "./ict.js";
+import { analyze, killZones, executionFrom, directionsFrom } from "./ict.js?v=original-setups-6";
 import { DeskChart } from "./chart.js";
 import { loadLiveBook, startStream } from "./live.js";
-import { mailEnabled, setMailEnabled, maybeNotify, sendTestAlert, lastMail, ALERT_EMAIL } from "./notify.js?v=email-transport-5";
+import { mailEnabled, setMailEnabled, maybeNotify, sendTestAlert, lastMail, ALERT_EMAIL } from "./notify.js?v=original-setups-6";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -23,7 +23,7 @@ const state = {
 };
 
 function fmt(n, d = 5) {
-  return Number(n).toFixed(d);
+  return n==null?"—":Number(n).toFixed(d);
 }
 function pips(n) {
   return (n / 0.0001).toFixed(1);
@@ -156,6 +156,21 @@ function renderDirections(a) {
       </article>`;
     })
     .join("");
+}
+
+function renderScalpPlans(a) {
+  const box=$('#scalpPlans');
+  const health=dataHealth(state.market);
+  if(!health.ok){box.textContent='Waiting for verified live data. No planning prices will be invented.';return;}
+  const plans=a.plans||[];
+  if(!plans.length){box.textContent='No original-model watchlist qualifies with valid current entry/stop/target geometry. Direction continues above; scanning automatically.';return;}
+  box.innerHTML=plans.map(s=>`<article class="scalp-plan" data-side="${s.side}">
+    <header><strong>${actionOf(s.side)} WATCH</strong><span>${s.model}</span></header>
+    <p>${s.condition} ${s.alignment}.</p>
+    <dl><div><dt>Planned entry</dt><dd>${fmt(s.entry)}</dd></div><div><dt>Stop loss</dt><dd>${fmt(s.sl)}</dd></div><div><dt>TP1</dt><dd>${fmt(s.t1)}</dd></div><div><dt>TP2</dt><dd>${s.t2==null?'No second observed target':fmt(s.t2)}</dd></div></dl>
+    <p>${s.riskPips} pip risk · ${s.t1Pips} pips to TP1 · R:R ${s.rr} (descriptive, not a probability).</p>
+    <small>${a.meta.source} · Levels can update until armed. No entry alert is sent by this watchlist.</small>
+  </article>`).join('');
 }
 
 function renderExecute(a) {
@@ -393,6 +408,7 @@ function refresh(market, opts = {}) {
   renderTape(a);
   renderExecute(a);
   renderDirections(a);
+  renderScalpPlans(a);
   renderSystemStatus();
   if (!opts.tickOnly) {
     renderMTF(a);
@@ -471,6 +487,7 @@ async function attachLive() {
       renderTape(state.analysis);
       renderExecute(state.analysis);
       renderDirections(state.analysis);
+      renderScalpPlans(state.analysis);
       state.chart.setData(m.frames[state.tf], state.analysis, state.tf, {
         preserve: true,
         soft: true,
@@ -552,7 +569,7 @@ function boot() {
       state.analysis.execution=signalTracker.update(state.analysis.execution,state.market);
       state.analysis.health=health;
       state.analysis.setups=[];state.analysis.limits=[];
-      renderTape(state.analysis);renderExecute(state.analysis);renderDirections(state.analysis);renderSetups(state.analysis);renderLimits(state.analysis);renderPred(state.analysis);
+      renderTape(state.analysis);renderExecute(state.analysis);renderDirections(state.analysis);renderSetups(state.analysis);renderLimits(state.analysis);renderPred(state.analysis);renderScalpPlans(state.analysis);
       setFeedStatus('offline',health.reasons.join(' · '));
       const data=dataHealth(state.market);
       if(data.ok)setFeedStatus('poll',`${state.market.meta.source} · data live; entries gated: ${health.reasons.join(' · ')}`);

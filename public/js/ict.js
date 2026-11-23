@@ -1,4 +1,5 @@
-import { TF_MS, nyParts, forexOpen, marketHealth, dataHealth } from './safety.js';
+import { buildOriginalSetups } from './setups.js';
+import { TF_MS, nyParts, forexOpen, marketHealth, dataHealth } from './safety.js?v=original-setups-6';
 /* Advanced ICT / IPDA engine — structure, liquidity, PD arrays, models, bias. */
 
 const PIP = 0.0001;
@@ -416,32 +417,6 @@ function nearest(arr, price, pred) {
   return best;
 }
 
-function buildSetups(ctx) {
-  const {price,frames,bias,po3}=ctx;
-  const side=bias.shortTerm==='BULLISH'?'LONG':bias.shortTerm==='BEARISH'?'SHORT':null;
-  if(!side) return [];
-  const bullish=side==='LONG', type=bullish?'BULL':'BEAR';
-  const opposite=bullish?'BEARISH':'BULLISH';
-  if(frames.H1.struct.trend===opposite||frames.H4.struct.trend===opposite)return [];
-  const recent=frames.M15.bars.slice(-16), atr=frames.M15.atr;
-  // Require a recent directional structure break AND displacement, followed by a retracement array.
-  const event=frames.M15.struct.lastEvent;
-  const fresh=event && event.dir===type && recent.some(b=>b.t===event.t);
-  const impulse=frames.M15.disp.some(d=>d.dir===type && recent.some(b=>b.t===d.t));
-  const swept=po3.judas?.side===(bullish?'SSL':'BSL') || frames.M15.liq.pools.some(p=>p.side===(bullish?'SSL':'BSL')&&p.swept&&p.reclaimed&&p.sweepT>=recent[0].t);
-  if(!fresh||!impulse||!swept) return [];
-  const gaps=frames.M15.gaps.filter(g=>g.type===type&&g.fill<0.85&&g.t>=recent[0].t&&Math.abs(g.ce-price)<=atr*2 && (bullish?g.ce<=price:g.ce>=price));
-  const gap=gaps.at(-1);if(!gap)return [];
-  const entry=gap.ce;
-  const sl=bullish?Math.min(...recent.map(b=>b.l))-atr*.2:Math.max(...recent.map(b=>b.h))+atr*.2;
-  const risk=bullish?entry-sl:sl-entry;
-  if(!(risk>=3*PIP&&risk<=atr*4))return [];
-  const targets=frames.H1.liq.pools.filter(p=>!p.swept && (bullish?p.price>entry+risk*1.5:p.price<entry-risk*1.5)).map(p=>p.price).sort((a,b)=>bullish?a-b:b-a);
-  if(!targets.length)return [];
-  const t1=targets[0],t2=targets[1]??(bullish?t1+risk:t1-risk);
-  return [{id:`ICT-${side}-${event.t}`,model:'ICT sweep + structure + FVG',side,title:'Confirmed sweep / displacement retracement',entry:+entry.toFixed(5),sl:+sl.toFixed(5),t1:+t1.toFixed(5),t2:+t2.toFixed(5),rr:+(Math.abs(t1-entry)/risk).toFixed(2),riskPips:+(risk/PIP).toFixed(1),t1Pips:+(Math.abs(t1-entry)/PIP).toFixed(1),invalid:sl,window:'Kill zone only; fresh quotes required',thesis:'Recent liquidity reclaim, directional structure and displacement; retrace to an unfilled M15 FVG. Paper setup, not a broker order.'}];
-}
-
 function predictions(ctx, setups) {
   const {price,frames,bias}=ctx;
   const make=(pack,direction,horizon)=>{
@@ -535,7 +510,8 @@ export function executionFrom(setups, price, now, po3, bias, kz) {
     })
     .sort((a, b) => a.toEntry - b.toEntry);
 
-  const pick = ranked.find((r) => !r.dead && !r.tpHit && (!prefer || r.s.side === prefer)) || ranked[0];
+  const valid = ranked.filter(r=>!r.dead&&!r.tpHit);
+  const pick = valid.find(r=>!prefer||r.s.side===prefer) || valid[0] || ranked[0];
   const s = pick.s;
   let status = "WAIT";
   let label = "WAIT";
@@ -550,7 +526,7 @@ export function executionFrom(setups, price, now, po3, bias, kz) {
   } else if (pick.tpHit) {
     status = "INVALID";
     label = "SETUP EXPIRED";
-    when = "Bank T1 now";
+    when = "Wait for a new setup";
     note = "Target has passed; no trade fill is inferred. Wait for a new setup.";
   } else if (pick.inTrade) {
     status = "IN_TRADE";
@@ -698,7 +674,7 @@ export function analyze(market, now = Date.now()) {
     po3: po3.phase,
   });
 
-  const setups = buildSetups(ctx);
+  const setups = buildOriginalSetups(ctx);
   const pred = predictions(ctx, setups);
   const story = narrative(ctx, pred, setups, confluence);
   const health=marketHealth(market,now);
@@ -738,6 +714,7 @@ export function analyze(market, now = Date.now()) {
     setups: health.ok ? setups : [],
     health,
     directionHealth,
+    plans: directionHealth.ok ? setups : [],
     execution,
     limits,
     directions,

@@ -38,7 +38,7 @@ test('UI boots in blocked/offline mode with all DOM IDs and canvas render paths 
       let result;const now=Date.now();
       if(url.includes('OHLC')){
         const minutes=+new URL(url).searchParams.get('interval'),tf=Object.keys(TF_MS).find(k=>TF_MS[k]===minutes*60000);
-        result={ZEURZUSD:Array.from({length:80},(_,i)=>{const c=1.15+Math.sin(i*.7)*.001;return [(bucketStart(now,tf)-(79-i)*TF_MS[tf])/1000,c,c+.0003,c-.0003,c,c,10,1];}),last:1};
+        result={ZEURZUSD:Array.from({length:80},(_,i)=>{const c=(tf==='D1'?1.155:1.15)+Math.sin(i*.7)*.001;return [(bucketStart(now,tf)-(79-i)*TF_MS[tf])/1000,c,c+.0003,c-.0003,c,c,10,1];}),last:1};
       }else if(url.includes('Ticker'))result={ZEURZUSD:{b:['1.14995'],a:['1.15005']}};
       else result={ZEURZUSD:[['1.15','1',now/1000,'b','m','']],last:1};
       return {ok:true,json:async()=>({error:[],result})};
@@ -47,6 +47,9 @@ test('UI boots in blocked/offline mode with all DOM IDs and canvas render paths 
     await new Promise(resolve=>original.setTimeout(resolve,0));
     assert.match(elements.get('#systemState').textContent,/Live/);
     assert.match(elements.get('#systemDetail').textContent,/Kraken EUR\/USD/);
+    assert.match(elements.get('#scalpPlans').innerHTML,/Planned entry/);
+    assert.match(elements.get('#scalpPlans').innerHTML,/TP1/);
+    assert.match(elements.get('#scalpPlans').innerHTML,/HTF Discount/);
     assert.match(elements.get('#dirGrid').innerHTML,/15 MIN/);
     assert.match(elements.get('#dirGrid').innerHTML,/1 WEEK/);
     assert.doesNotMatch(elements.get('#dirGrid').innerHTML,/UNVERIFIED/);

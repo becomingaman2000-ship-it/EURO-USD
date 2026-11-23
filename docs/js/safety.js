@@ -52,14 +52,6 @@ export function marketHealth(market,now=Date.now()) {
   const data=dataHealth(market,now),reasons=[...data.reasons],meta=market.meta||{};
   if(!forexOpen(now))reasons.push('FX market closed / rollover');
   // News is explicitly unverified, not a manual time-lock masquerading as a data check.
-  const recent=market.frames?.M15?.filter(b=>b.t+TF_MS.M15<=now).slice(-42)||[];
-  if(recent.length>=42){
-    const ranges=recent.slice(1).map((b,i)=>Math.max(b.h-b.l,Math.abs(b.h-recent[i].c),Math.abs(b.l-recent[i].c)));
-    const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
-    const ratio=mean(ranges.slice(-14))/Math.max(mean(ranges.slice(0,27)),1e-9);
-    if(ratio>2.5||ratio<0.3)reasons.push('Volatility regime outside conservative operating bounds');
-    if(ranges.at(-1)>mean(ranges.slice(0,-1))*4)reasons.push('Extreme latest-bar range: wait for conditions to normalize');
-  }
   return {...data,ok:reasons.length===0,reasons};
 }
 
@@ -84,18 +76,18 @@ export function createSignalTracker() {
       return result('IN_TRADE','PAPER SIGNAL — TRACKING','An entry touch was observed after arming. This is not confirmation of a broker trade.');
     }
     if (!candidate || !candidate.entry || candidate.side === 'FLAT') { pending = null; return base; }
-    const geometry=['entry','sl','t1','t2'].every(k=>Number.isFinite(candidate[k])) && (candidate.side==='LONG'?candidate.sl<candidate.entry&&candidate.entry<candidate.t1&&candidate.t1<=candidate.t2:candidate.side==='SHORT'&&candidate.sl>candidate.entry&&candidate.entry>candidate.t1&&candidate.t1>=candidate.t2);
+    const geometry=['entry','sl','t1'].every(k=>Number.isFinite(candidate[k])) && (candidate.side==='LONG'?candidate.sl<candidate.entry&&candidate.entry<candidate.t1&&(candidate.t2==null||Number.isFinite(candidate.t2)&&candidate.t1<candidate.t2):candidate.side==='SHORT'&&candidate.sl>candidate.entry&&candidate.entry>candidate.t1&&(candidate.t2==null||Number.isFinite(candidate.t2)&&candidate.t1>candidate.t2));
     if(!geometry||!['ENTER','ARM','WAIT'].includes(candidate.status)){pending=null;return result('INVALID','NO VALID ENTRY','Invalid or expired setup; monitoring will not infer an entry.');}
     const key = `${candidate.setupId||candidate.model}-${candidate.side}`;
     if (!pending || pending.key !== key || now-pending.at > 3600000 || gap) {
       pending = {...candidate,key,at:now};
-      return result('ARM','PAPER SETUP ARMED','Monitoring starts now. No historical fill is inferred.');
+      return result('ARM','SETUP WATCH — NOT AN ENTRY','Levels are armed for observation. Wait for an entry touch in an eligible window; no historical fill is inferred.');
     }
     Object.assign(base,pending);
     const px = pending.side === 'LONG' ? market.meta.ask : market.meta.bid;
     const invalid = pending.side === 'LONG' ? px <= pending.sl || px >= pending.t1 : px >= pending.sl || px <= pending.t1;
     if (invalid) { pending=null; return result('INVALID','SETUP EXPIRED','Stop or target reached before a valid observed entry touch.'); }
-    if (candidate.status === 'ENTER' && Math.abs(px-pending.entry) <= 1.5*0.0001) {
+    if (candidate.status === 'ENTER' && Math.abs(px-pending.entry) <= 3.2*0.0001) {
       active = {...pending,triggeredAt:now}; pending=null;
       return result('ENTER',`PAPER ${active.side} TRIGGER`,'Entry touch observed during the permitted window. Confirm independently with your broker.',active);
     }

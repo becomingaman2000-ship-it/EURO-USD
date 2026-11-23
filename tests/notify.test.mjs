@@ -8,6 +8,7 @@ test('email switch persists; explicit test is non-trading, rejects service failu
   assert.equal(mailEnabled(),true);setMailEnabled(false);assert.equal(mailEnabled(),false);
   const out=await sendTestAlert();assert.equal(out.ok,true);assert.match(calls[0]._subject,/TEST/);assert.equal(calls[0]['Enter at'],'—');assert.equal(calls[0].email,undefined);assert.equal(mailEnabled(),false);
   let status;await maybeNotify({status:'ENTER'},{},(s)=>status=s);assert.equal(status,'off');assert.equal(calls.length,1);
+  setMailEnabled(true);await maybeNotify({status:'ARM'},{},()=>{});assert.equal(calls.length,1);
   globalThis.fetch=async()=>({ok:true,status:200,json:async()=>({success:'false',message:'Activation required'})});
   await assert.rejects(sendTestAlert(),/Activation required/);
   await assert.rejects(sendAlert({status:'WAIT'},{meta:{}}),/observed ENTER/);

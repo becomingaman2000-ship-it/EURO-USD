@@ -83,9 +83,9 @@ test('live loader requests only Kraken EURUSD plus independent GBPUSD; validates
   try{const book=await loadLiveBook();assert.ok(book);assert.equal(book.meta.instrument,'EUR/USD');assert.equal(book.meta.tradeAt,now);assert.equal(Object.keys(book.frames).length,6);assert.ok(urls.every(u=>u.startsWith('https://api.kraken.com/')));assert.ok(!urls.some(u=>u.includes('USDT')));}
   finally{globalThis.fetch=originalFetch;Date.now=originalNow;}
 });
-test('extreme volatility and missing trading-session bars are explicitly blocked',()=>{
+test('no introduced ATR volatility veto, but missing trading-session history remains blocked',()=>{
   const m=fixture();m.frames.M15.at(-2).h+=.03;
-  assert.ok(marketHealth(m,now).reasons.some(x=>/Volatility|Extreme/.test(x)));
+  assert.equal(marketHealth(m,now).ok,true);
   const gap=fixture();gap.frames.M15.splice(-10,4);
   assert.ok(marketHealth(gap,now).reasons.some(x=>/gap/.test(x)));
 });
@@ -147,4 +147,11 @@ test('locally quote-built candles are not promoted to confirmed historical struc
 test('invalid or geometrically reversed setup cannot arm a live paper signal',()=>{
   const m=fixture(),t=createSignalTracker();
   assert.equal(t.update({side:'LONG',status:'ENTER',entry:1.15,sl:1.16,t1:1.14,t2:1.13,model:'bad'},m,now).status,'INVALID');
+});
+
+test('observed paper trigger uses original 3.2-pip entry array and permits absent TP2',()=>{
+ const m=fixture();Object.assign(m.meta,{bid:1.15015,ask:1.15025,spot:1.1502});
+ const t=createSignalTracker(),c={side:'LONG',status:'ENTER',entry:1.15,sl:1.149,t1:1.152,t2:null,model:'original',setupId:'same'};
+ assert.equal(t.update(c,m,now).status,'ARM');
+ const ex=t.update(c,m,now+1000);assert.equal(ex.status,'ENTER');assert.equal(ex.t2,null);
 });
