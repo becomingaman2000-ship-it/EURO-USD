@@ -89,6 +89,7 @@ export class DeskChart {
     const parent = this.canvas.parentElement;
     const w = parent.clientWidth;
     const h = parent.clientHeight;
+    if(w<1||h<1)return; // Collapsed research drawer; resize when opened.
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     for (const c of [this.canvas, this.overlay]) {
       c.width = Math.round(w * this.dpr);

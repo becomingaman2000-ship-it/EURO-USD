@@ -20,3 +20,9 @@ test('duplicate test taps share a single in-flight submission',async()=>{
  try{const first=sendTestAlert();assert.equal((await sendTestAlert()).skipped,true);assert.equal(count,1);finish({ok:true,status:200,json:async()=>({success:true})});assert.equal((await first).ok,true);}
  finally{globalThis.fetch=original;}
 });
+test('unavailable browser storage does not break alert controls',()=>{
+ const old=globalThis.localStorage;
+ globalThis.localStorage={getItem(){throw new Error('storage unavailable');},setItem(){throw new Error('storage unavailable');}};
+ try{setMailEnabled(false);assert.equal(mailEnabled(),false);setMailEnabled(true);assert.equal(mailEnabled(),true);}
+ finally{globalThis.localStorage=old;}
+});

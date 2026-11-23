@@ -20,11 +20,11 @@ Monitoring is blocked when any of these apply:
 - missing/crossed bid/ask or spread above 2 pips;
 - FX weekend closure or daily 17:00–17:05 New York rollover buffer;
 - extreme M15 volatility change (14-bar average versus prior 27-bar baseline outside 0.3–2.5), or last bar exceeding four times the preceding mean range;
-- expired economic-calendar confirmation.
+- no manual confirmation gate is used; news coverage remains unverified (see below).
 
-**No automatic economic-news feed is connected.** Check an independent calendar and use **“I checked the calendar · monitor for 30 minutes”**. This is an expiring manual acknowledgement, not an automatic news blackout filter or assurance of news-safe trading. Conservative spread/volatility thresholds are safeguards, not optimized strategy parameters.
+**No automatic economic-news feed is connected.** A visible external calendar link is provided. The confusing calendar-confirmation gate has been removed: monitoring starts automatically on healthy data. This is not a news-safe assurance; check releases independently before acting. Conservative spread/volatility thresholds are safeguards, not optimized strategy parameters.
 
-Directional data health is separate from entry eligibility: healthy data can show directional bias without calendar confirmation or an entry setup. Closed FX hours, calendar confirmation and volatility conditions still gate paper entries. A one-second watchdog revokes actionable UI and email guidance even if quotes stop arriving. Frozen or illiquid tape should show **SIGNALS BLOCKED**, not a fabricated trade. A network outage does not turn synthetic candles into live data.
+Directional data health is separate from entry eligibility: healthy data can show directional bias without calendar confirmation or an entry setup. Closed FX hours and volatility conditions still gate paper entries. A one-second watchdog revokes actionable UI and email guidance even if quotes stop arriving. Frozen or illiquid tape should show **SIGNALS BLOCKED**, not a fabricated trade. A network outage does not turn synthetic candles into live data.
 
 ## Strategy and lifecycle repairs
 
@@ -67,3 +67,7 @@ Tests cover safety gates, DST/weekends, candle validity, feed-source isolation (
 ## Email controls and delivery
 
 The Email alerts switch restores and saves the browser's setting. It is ON by default unless disabled on that device. **Send test** is an explicit non-trading test and works even when market conditions block entry alerts; it does not turn automatic alerts on or imply a live setup. No test email is sent automatically. The service must return a successful acceptance response before the UI reports acceptance. Requests time out after 15 seconds and overlapping automatic submissions are suppressed. Acceptance is not proof of inbox delivery: check Spam and any FormSubmit activation message for `becomingaman2000@gmail.com`. Browser-based alerts require the page to remain active and an observed ENTER signal on healthy data; a bullish/bearish bias alone sends no email.
+
+## Simple automatic layout
+
+The default screen shows connection health, one current paper setup, and six timeframe directions. Source controls, email settings, chart and research live in collapsed native drawers. No demonstration tape is analyzed at startup. On unavailable live data the screen shows no prices or invented directions and reconnects automatically. Returning from a background tab or going online triggers a full reload; old quotes are invalidated on resume. This does not make background mobile alerts reliable. Browser-storage failures no longer prevent email controls and startup from functioning (settings use temporary in-memory fallback). No always-on backend, automatic news feed, broker execution, or performance guarantee is claimed.

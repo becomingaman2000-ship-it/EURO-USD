@@ -51,7 +51,7 @@ export function dataHealth(market, now = Date.now()) {
 export function marketHealth(market,now=Date.now()) {
   const data=dataHealth(market,now),reasons=[...data.reasons],meta=market.meta||{};
   if(!forexOpen(now))reasons.push('FX market closed / rollover');
-  if (!(meta.newsCheckedUntil > now)) reasons.push('Check the economic calendar and enable the 30-minute monitoring window');
+  // News is explicitly unverified, not a manual time-lock masquerading as a data check.
   const recent=market.frames?.M15?.filter(b=>b.t+TF_MS.M15<=now).slice(-42)||[];
   if(recent.length>=42){
     const ranges=recent.slice(1).map((b,i)=>Math.max(b.h-b.l,Math.abs(b.h-recent[i].c),Math.abs(b.l-recent[i].c)));

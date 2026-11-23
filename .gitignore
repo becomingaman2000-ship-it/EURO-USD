@@ -2,3 +2,5 @@ node_modules/
 .DS_Store
 
 live-feed-check.json
+
+.arena/

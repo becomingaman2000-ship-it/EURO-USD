@@ -6,21 +6,24 @@ export const ALERT_EMAIL = "becomingaman2000@gmail.com";
 const KEY_ON = "ipda-mail-on";
 const KEY_LAST = "ipda-mail-last";
 const KEY_ARMED = "ipda-mail-armed";
+const memoryStore=new Map();
+function readStore(scope,key){try{return globalThis[scope].getItem(key);}catch{return memoryStore.get(`${scope}:${key}`)??null;}}
+function writeStore(scope,key,value){try{globalThis[scope].setItem(key,value);}catch{memoryStore.set(`${scope}:${key}`,String(value));}}
 const COOLDOWN_MS = 40 * 60 * 1000;
 let sendingEntry=false;
 let sendingTest=false;
 
 export function mailEnabled() {
-  return localStorage.getItem(KEY_ON) !== "0";
+  return readStore('localStorage',KEY_ON) !== "0";
 }
 
 export function setMailEnabled(on) {
-  localStorage.setItem(KEY_ON, on ? "1" : "0");
+  writeStore('localStorage',KEY_ON,on ? '1' : '0');
 }
 
 export function lastMail() {
   try {
-    return JSON.parse(localStorage.getItem(KEY_LAST) || "null");
+    return JSON.parse(readStore('localStorage',KEY_LAST) || "null");
   } catch {
     return null;
   }
@@ -150,7 +153,7 @@ export async function sendAlert(ex, market, { force = false } = {}) {
     }
   }
   const result = await postFormSubmit(payload);
-  localStorage.setItem(KEY_LAST, JSON.stringify(rec));
+  writeStore('localStorage',KEY_LAST,JSON.stringify(rec));
   return { ok: true, result, last: rec };
 }
 
@@ -159,10 +162,10 @@ export async function maybeNotify(ex, market, onStatus) {
   if(sendingEntry)return;
   if (!ex) return;
   if (ex.status !== "ENTER") {
-    sessionStorage.setItem(KEY_ARMED, "0");
+    writeStore('sessionStorage',KEY_ARMED,'0');
     return;
   }
-  if (sessionStorage.getItem(KEY_ARMED) === "1") {
+  if (readStore('sessionStorage',KEY_ARMED) === "1") {
     const prev = lastMail();
     const key = `${actionOf(ex.side)}-${fmt(ex.entry)}-${fmt(ex.t1)}`;
     if (prev && prev.key === key) return;
@@ -175,7 +178,7 @@ export async function maybeNotify(ex, market, onStatus) {
       onStatus?.("idle", `Last alert ${new Date(out.last.at).toLocaleTimeString()} (cooldown)`);
       return;
     }
-    sessionStorage.setItem(KEY_ARMED, "1");
+    writeStore('sessionStorage',KEY_ARMED,'1');
     onStatus?.("sent", `Email service accepted the alert for ${ALERT_EMAIL}; inbox delivery not verified`);
   } catch (err) {
     onStatus?.("error", err.message || "Mail failed");

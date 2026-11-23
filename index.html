@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/app.css?v=mobile-controls-3" />
+  <link rel="stylesheet" href="css/app.css?v=simple-auto-4" />
 </head>
 <body>
   <div class="grain"></div>
@@ -39,15 +39,16 @@
     </div>
 
     <div class="last">
-      <div id="spot" class="spot">1.15214</div>
+      <div id="spot" class="spot">—</div>
       <div id="spotChg" class="chg down">—</div>
-      <div id="asOf" class="asof">IPDA COMPOSITE</div>
+      <div id="asOf" class="asof">CONNECTING TO LIVE DATA</div>
     </div>
 
     <div class="action-flag" id="actionFlag" data-action="FLAT">
       <span>Action</span>
       <strong id="actionWord">—</strong>
     </div>
+    <div class="top-bias">
       <div>
         <span>HTF bias</span>
         <b id="biasHtf" class="seal">—</b>
@@ -65,23 +66,27 @@
   </header>
 
   <main>
-    <section class="panel safety-panel" aria-label="Live market safety">
-      <h2>Live EUR/USD · signal safety</h2>
-      <p>Kraken EUR/USD preferred; optional Binance EUR/USDT is a stablecoin proxy, not broker EUR/USD. Complete venue histories are kept separate. Signals are blocked on demo data, stale history, stale trades, wide spreads, market closure, or extreme volatility. No broker orders are placed.</p>
-      <p>No automatic economic calendar is connected. Check upcoming EUR/USD releases before enabling monitoring. Confirmation expires after 30 minutes; it does not guarantee news-safe conditions.</p>
-      <label for="feedMode">Market source</label>
-      <select id="feedMode" style="max-width:100%;padding:10px;background:#17191f;color:#eee;border:1px solid #a8894d">
-        <option value="AUTO">Auto · Kraken, then Binance FX proxy</option>
-        <option value="KRAKEN">Kraken · EUR/USD only</option>
-        <option value="BINANCE">Binance · EUR/USDT proxy (not EUR/USD)</option>
-      </select>
-      <p>Direction is available on healthy data without enabling entries. BUY/SELL BIAS describes confirmed structure plus momentum, not a guaranteed forecast. WAIT means evidence is weak or conflicting. Proxy prices must be checked against MT5.</p>
-      <div class="safety-actions">
-        <button id="confirmCalendar" class="safety-button primary" type="button">I checked the calendar — enable 30-minute monitoring</button>
-        <button id="resetSignals" class="safety-button" type="button">Reset paper signal monitoring</button>
-      </div>
-      <p id="calendarStatus" role="status" aria-live="polite">Monitoring not enabled. Check the calendar, then tap the gold button.</p>
+    <section class="system-summary" aria-label="System status">
+      <p class="eyebrow">Automatic market monitoring · paper signals</p>
+      <h1 id="systemState" role="status" aria-live="polite">Connecting to live markets…</h1>
+      <p id="systemDetail">Auto-selecting a complete Kraken EUR/USD or Binance EUR/USDT proxy feed.</p>
+      <p class="news-notice">News filtering is not connected. <a href="https://www.forexfactory.com/calendar" target="_blank" rel="noopener noreferrer">Open economic calendar ↗</a> before trading. No confirmation button required.</p>
     </section>
+    <details class="drawer" id="connectionSettings">
+      <summary>Connection settings & troubleshooting</summary>
+      <section class="safety-panel">
+        <label for="feedMode">Market source</label>
+        <select id="feedMode">
+          <option value="AUTO">Auto · Kraken, then Binance FX proxy</option>
+          <option value="KRAKEN">Kraken · EUR/USD only</option>
+          <option value="BINANCE">Binance · EUR/USDT proxy</option>
+        </select>
+        <p>Binance is a stablecoin proxy, not Pepperstone EUR/USD. One venue supplies each complete book. Bad or stale data cannot trigger entries.</p>
+        <button id="resetSignals" class="safety-button" type="button">Reset paper trade tracking</button>
+        <p id="resetStatus" role="status"></p>
+        <p id="diagnosticReasons">Connection diagnostics will appear here.</p>
+      </section>
+    </details>
     <section class="execute" id="execute">
       <div class="ex-head">
         <div class="ex-action" id="exAction" data-action="FLAT">
@@ -129,7 +134,8 @@
       </div>
       <div class="ex-track"><i id="exBar"></i></div>
       <p id="exNote">Connecting live EUR/USD…</p>
-      <button id="confirmCalendarInline" class="safety-button primary" type="button">I checked the calendar — enable monitoring</button>
+
+      <details class="drawer email-settings"><summary>Email alert settings</summary>
       <div class="mailbar">
         <label class="switch">
           <input type="checkbox" id="mailToggle" checked />
@@ -139,19 +145,22 @@
         <button type="button" id="mailTest" class="ghost">Send test</button>
         <span id="mailStatus" class="mail-status">Checking this device’s alert setting…</span>
       </div>
+      </details>
     </section>
 
     <section class="direction">
       <header class="dir-head">
         <div>
           <p class="eyebrow">Closed-candle structure · not an entry instruction</p>
-          <h2>Multi-timeframe direction board</h2>
+          <h2>Direction by timeframe</h2>
         </div>
-        <p>One read per timeframe from the IPDA engine. “Entry in” is the hours until the next tradable kill zone opens (when the trade can be taken); “To finish” is the ATR-scaled estimate for the move to reach its draw.</p>
+        <p>BUY BIAS / SELL BIAS describes structure, not an entry. WAIT means no clear agreement. Actual trade levels appear above only when a setup qualifies.</p>
       </header>
       <div id="dirGrid" class="dir-grid"></div>
     </section>
 
+    <details class="drawer" id="researchPanels">
+      <summary>Advanced chart, research & strategy details</summary>
     <section class="limits">
       <header class="limits-head">
         <div>
@@ -304,6 +313,7 @@
         </article>
       </div>
     </section>
+    </details>
   </main>
 
   <footer class="colophon">
@@ -318,6 +328,6 @@
     </p>
   </footer>
 
-  <script type="module" src="js/app.js?v=mobile-controls-3"></script>
+  <script type="module" src="js/app.js?v=simple-auto-4"></script>
 </body>
 </html>

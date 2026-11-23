@@ -45,7 +45,7 @@ export function runBacktest(opts={}) {
       return [tf,[...bars,{t:bucket,o:part[0].o,h:Math.max(...part.map(x=>x.h)),l:Math.min(...part.map(x=>x.l)),c:part.at(-1).c,v:part.reduce((s,x)=>s+(x.v||0),0)}]];
     }));
     const daily=replayFrames.D1.at(-1);
-    const replay={meta:{synthetic:false,instrument:'EUR/USD',source:market.meta.source,live:true,spot:b.c,bid:b.c-spread/2,ask:b.c+spread/2,quoteAt:now,tradeAt:now,historyAt:now,newsCheckedUntil:now+1,dayHigh:daily.h,dayLow:daily.l,prevClose:daily.o},frames:replayFrames,gbpDaily:(market.gbpDaily||[]).filter(x=>x.t+TF_MS.D1<=now)};
+    const replay={meta:{synthetic:false,instrument:'EUR/USD',source:market.meta.source,live:true,spot:b.c,bid:b.c-spread/2,ask:b.c+spread/2,quoteAt:now,tradeAt:now,historyAt:now,dayHigh:daily.h,dayLow:daily.l,prevClose:daily.o},frames:replayFrames,gbpDaily:(market.gbpDaily||[]).filter(x=>x.t+TF_MS.D1<=now)};
     const analysis=analyze(replay,now);
     // Health in replay uses closed bars, not live forming bars. A 30-bar warmup is required.
     if(!open&&analysis.health.ok&&analysis.execution.status==='ENTER')pending={...analysis.execution};

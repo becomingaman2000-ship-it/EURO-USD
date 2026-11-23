@@ -1,11 +1,10 @@
 import { marketHealth, dataHealth, createSignalTracker } from './safety.js';
 const signalTracker=createSignalTracker();
 let attaching=false;
-let newsCheckedUntil=0;
 let feedMode="AUTO";
 let feedRequest=0;
 let retryTimer=null;
-import { getMarket, hydrateFromLive, MARKET_META } from "./data.js";
+import { hydrateFromLive, MARKET_META } from "./data.js";
 import { analyze, killZones, executionFrom, directionsFrom } from "./ict.js";
 import { DeskChart } from "./chart.js";
 import { loadLiveBook, startStream } from "./live.js";
@@ -117,7 +116,7 @@ function renderTape(a) {
   const word = $("#actionWord");
   if (flag && word) {
     flag.dataset.action = act;
-    word.textContent = act;
+    word.textContent = act === "FLAT" ? "WAIT" : act;
   }
 }
 
@@ -169,14 +168,14 @@ function renderExecute(a) {
   const stamp = $("#exAction");
   if (stamp) {
     stamp.dataset.action = act;
-    $("#exActionWord").textContent = act;
+    $("#exActionWord").textContent = act === "FLAT" ? "WAIT" : act;
     $("#exActionSub").textContent =
       a.meta.proxy ? "EUR/USDT proxy — check Pepperstone EUR/USD before trading" :
       act === "BUY" ? "Buy the euro / sell the dollar" :
       act === "SELL" ? "Sell the euro / buy the dollar" :
       "No directional order";
   }
-  $("#exState").textContent = ex.label.replace("LONG", "BUY").replace("SHORT", "SELL");
+  $("#exState").textContent = (ex.label==="SIGNALS BLOCKED"?"WAIT — SAFETY CHECK":ex.status==="STAND_ASIDE"?"MONITORING — NO ENTRY YET":ex.label).replace("LONG", "BUY").replace("SHORT", "SELL");
   $("#exWhen").textContent = ex.when;
   $("#exEntry").textContent = ex.entry != null ? fmt(ex.entry) : "—";
   $("#exSl").textContent = ex.sl != null ? fmt(ex.sl) : "—";
@@ -387,7 +386,6 @@ function clamp(v, a, b) {
 }
 
 function refresh(market, opts = {}) {
-  market.meta.newsCheckedUntil=newsCheckedUntil;
   state.market = market;
   state.analysis = analyze(market);
   const a = state.analysis;
@@ -395,6 +393,7 @@ function refresh(market, opts = {}) {
   renderTape(a);
   renderExecute(a);
   renderDirections(a);
+  renderSystemStatus();
   if (!opts.tickOnly) {
     renderMTF(a);
     renderLimits(a);
@@ -429,6 +428,12 @@ async function attachLive() {
   if(request!==feedRequest||mode!==feedMode){attachLive();return;}
   if (!book) {
     setFeedStatus("offline", `Live data unavailable — ${loadLiveBook.lastError||"retrying"}`);
+    if(!state.market){
+      $('#systemState').textContent='Reconnecting to market data';
+      $('#systemDetail').textContent=loadLiveBook.lastError||'Retrying automatically in 20 seconds.';
+      $('#exState').textContent='WAIT — NO LIVE DATA';
+      $('#exNote').textContent='No verified feed available. Retrying automatically; no manual confirmation is required.';
+    }
     retryTimer=window.setTimeout(attachLive, 20000);
     return;
   }
@@ -475,39 +480,18 @@ async function attachLive() {
   });
 }
 
-function renderMonitoringStatus() {
-  const remaining=Math.max(0,newsCheckedUntil-Date.now());
-  const enabled=remaining>0;
-  $('#calendarStatus').textContent=enabled
-    ? `Calendar confirmed. Monitoring window active for ${Math.ceil(remaining/60000)} more minute(s). Other safety checks and a valid setup are still required.`
-    : 'Monitoring not enabled or expired. Check the calendar, then tap the gold button.';
-  $('#confirmCalendar').textContent=enabled?'Calendar confirmed — renew 30-minute window':'I checked the calendar — enable 30-minute monitoring';
-  $('#confirmCalendarInline').hidden=enabled;
-}
-
-function bindMonitoringControls() {
-  try {
-    const saved=Number(sessionStorage.getItem('ipda-calendar-until'));
-    if(saved>Date.now()&&saved<=Date.now()+30*60000)newsCheckedUntil=saved;
-  }catch{}
-  const enable=()=>{
-    newsCheckedUntil=Date.now()+30*60000;
-    try{sessionStorage.setItem('ipda-calendar-until',String(newsCheckedUntil));}catch{}
-    renderMonitoringStatus(); // Acknowledge the tap before the heavier chart rescan.
-    if(state.market)refresh(state.market,{preserve:true,soft:true});
-  };
-  $('#confirmCalendar').addEventListener('click',enable);
-  $('#confirmCalendarInline').addEventListener('click',enable);
-  $('#resetSignals').addEventListener('click',()=>{
-    signalTracker.reset();
-    if(state.market)refresh(state.market,{preserve:true,soft:true});
-    $('#calendarStatus').textContent='Paper signal tracking reset. '+(newsCheckedUntil>Date.now()?'Your calendar confirmation remains active.':'Check the calendar and enable monitoring.');
-  });
-  renderMonitoringStatus();
+function renderSystemStatus() {
+  if(!state.market)return;
+  const data=dataHealth(state.market),health=marketHealth(state.market);
+  const ex=state.analysis?.execution;
+  $('#systemState').textContent=!data.ok?'Reconnecting — no valid live feed':!health.ok?'Live data · waiting for suitable conditions':ex?.status==='ENTER'?'New paper entry observed':ex?.status==='IN_TRADE'?'Paper trade tracking active':'Live · monitoring automatically';
+  const quoteAge=Math.max(0,Math.round((Date.now()-state.market.meta.quoteAt)/1000));
+  const tradeAge=Math.max(0,Math.round((Date.now()-state.market.meta.tradeAt)/1000));
+  $('#systemDetail').textContent=!data.ok?`${data.reasons[0]}. Retrying automatically; no entries emitted.`:`${state.market.meta.source} · quote ${quoteAge}s ago · venue trade ${tradeAge}s ago. ${health.ok?'Waiting for a qualified setup; no action needed.':health.reasons[0]}`;
+  $('#diagnosticReasons').textContent=health.ok?'All market-data and entry-safety checks passed. This does not guarantee a profitable setup.':health.reasons.join(' · ');
 }
 
 function boot() {
-  bindMonitoringControls(); // Bind before chart construction, analysis, or network startup.
   try {const saved=localStorage.getItem("ipda-feed-mode");if(["AUTO","KRAKEN","BINANCE"].includes(saved))feedMode=saved;}catch{}
   $("#feedMode").value=feedMode;
   $("#feedMode").addEventListener("change",()=>{
@@ -519,7 +503,18 @@ function boot() {
   });
   state.chart = new DeskChart($("#tape"), $("#tapeOv"));
   state.chart.onHover = renderHover;
-  refresh(getMarket());
+  // Never analyze generated demonstration candles while seeking a real connection.
+  $('#exState').textContent='CONNECTING';
+  $('#exEntry').textContent='—';
+  $('#actionWord').textContent='WAIT';
+  $('#exNote').textContent='Connecting automatically. No setup will be shown without validated live data.';
+  $('#dirGrid').textContent='Timeframe directions appear after live history loads.';
+  $('#resetSignals').addEventListener('click',()=>{
+    signalTracker.reset();
+    if(state.market)refresh(state.market,{preserve:true,soft:true});
+    $('#resetStatus').textContent='Paper tracking reset. Automatic monitoring continues.';
+  });
+  $('#researchPanels').addEventListener('toggle',()=>{if($('#researchPanels').open&&state.market)state.chart.resize();});
 
   $$(".tf button").forEach((b) =>
     b.addEventListener("click", () => setTF(b.dataset.tf))
@@ -539,9 +534,9 @@ function boot() {
     setTimeout(() => $("#rescan").classList.remove("spin"), 700);
   });
 
-  window.addEventListener("resize", () => state.chart.resize());
+  window.addEventListener("resize", () => {if(state.market)state.chart.resize();});
   renderClock();
-  setInterval(()=>{renderClock();renderMonitoringStatus();}, 1000);
+  setInterval(()=>{renderClock();renderSystemStatus();}, 1000);
   attachLive();
 
   window.addEventListener("keydown", (e) => {
@@ -580,9 +575,24 @@ function boot() {
     }catch(err){setMailStatus('error',err.name==='AbortError'?'Email request timed out; check your inbox before retrying.':err.message||'Test request failed');}
     finally{testButton.disabled=false;}
   });
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'){
+      if(state.market){state.market.meta.quoteAt=0;renderSystemStatus();}
+      attachLive();
+    }
+  });
+  window.addEventListener('online',()=>attachLive());
   $("#yearNow").textContent = new Date().getFullYear();
   requestAnimationFrame(() => $("#boot")?.classList.add("off"));
 }
 
-document.addEventListener("DOMContentLoaded", boot);
+document.addEventListener("DOMContentLoaded",()=>{
+  try{boot();}
+  catch(error){
+    console.error('Dashboard startup failed',error);
+    $('#systemState').textContent='Dashboard could not start';
+    $('#systemDetail').textContent=`${error.message}. Reload the page to retry.`;
+    $('#boot')?.classList.add('off');
+  }
+});
 Object.assign(window, { MARKET_META });

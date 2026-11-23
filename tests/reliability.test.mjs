@@ -13,9 +13,9 @@ function fixture(time=now){
   })]));
   return {meta:{source:'Kraken EUR/USD',instrument:'EUR/USD',synthetic:false,live:true,quoteAt:now,tradeAt:now,historyAt:now,newsCheckedUntil:now+1800000,bid:1.14995,ask:1.15005,spot:1.15},frames,gbpDaily:[]};
 }
-test('healthy sourced fixture; fail closed on demo, stale, proxy, spread, news, and malformed history',()=>{
+test('healthy sourced fixture; fail closed on demo, stale, proxy, spread, and malformed history',()=>{
   assert.equal(marketHealth(fixture(),now).ok,true);
-  for(const patch of [{synthetic:true},{live:false},{instrument:'EUR/USDT'},{tradeAt:now-61000},{quoteAt:now-16000},{historyAt:now-181000},{ask:1.151},{newsCheckedUntil:0}]){
+  for(const patch of [{synthetic:true},{live:false},{instrument:'EUR/USDT'},{tradeAt:now-61000},{quoteAt:now-16000},{historyAt:now-181000},{ask:1.151}]){
     const m=fixture();Object.assign(m.meta,patch);assert.equal(marketHealth(m,now).ok,false,JSON.stringify(patch));
   }
   const m=fixture();m.frames.H1.at(-1).h=0;assert.equal(marketHealth(m,now).ok,false);
@@ -96,10 +96,10 @@ test('replay accepts supplied sourced fixture without synthetic fallback',()=>{
   assert.match(result.executionModel,/simulation/);
 });
 
-test('direction data can be healthy while entries are calendar-gated',async()=>{
+test('manual calendar confirmation is not required for healthy automatic monitoring',async()=>{
   const {dataHealth}=await import('../js/safety.js');
   const m=fixture();m.meta.newsCheckedUntil=0;
-  assert.equal(dataHealth(m,now).ok,true);assert.equal(marketHealth(m,now).ok,false);
+  assert.equal(dataHealth(m,now).ok,true);assert.equal(marketHealth(m,now).ok,true);
 });
 test('six directional periods require agreement, expose closed time, and WAIT on conflict',async()=>{
   const {directionsFrom}=await import('../js/ict.js');
