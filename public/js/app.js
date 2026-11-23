@@ -1,14 +1,14 @@
-import { marketHealth, dataHealth, createSignalTracker } from './safety.js?v=original-setups-6';
+import { marketHealth, dataHealth, createSignalTracker } from './safety.js?v=freshness-7';
 const signalTracker=createSignalTracker();
 let attaching=false;
 let feedMode="AUTO";
 let feedRequest=0;
 let retryTimer=null;
 import { hydrateFromLive, MARKET_META } from "./data.js";
-import { analyze, killZones, executionFrom, directionsFrom } from "./ict.js?v=original-setups-6";
+import { analyze, killZones, executionFrom, directionsFrom } from "./ict.js?v=freshness-7";
 import { DeskChart } from "./chart.js";
 import { loadLiveBook, startStream } from "./live.js";
-import { mailEnabled, setMailEnabled, maybeNotify, sendTestAlert, lastMail, ALERT_EMAIL } from "./notify.js?v=original-setups-6";
+import { mailEnabled, setMailEnabled, maybeNotify, sendTestAlert, lastMail, ALERT_EMAIL } from "./notify.js?v=freshness-7";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -162,7 +162,9 @@ function renderScalpPlans(a) {
   const box=$('#scalpPlans');
   const health=dataHealth(state.market);
   if(!health.ok){box.textContent='Waiting for verified live data. No planning prices will be invented.';return;}
-  const plans=a.plans||[];
+  // Do not display a cached plan as available after spot has reached its stop/first target.
+  const spot=state.market.meta.spot;
+  const plans=(a.plans||[]).filter(s=>Number.isFinite(spot)&&(s.side==='LONG'?spot>s.sl&&spot<s.t1:spot<s.sl&&spot>s.t1));
   if(!plans.length){box.textContent='No original-model watchlist qualifies with valid current entry/stop/target geometry. Direction continues above; scanning automatically.';return;}
   box.innerHTML=plans.map(s=>`<article class="scalp-plan" data-side="${s.side}">
     <header><strong>${actionOf(s.side)} WATCH</strong><span>${s.model}</span></header>

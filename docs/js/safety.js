@@ -37,7 +37,7 @@ export function dataHealth(market, now = Date.now()) {
   if (!(meta.bid > 0 && meta.ask >= meta.bid) || !Number.isFinite(spread) || spread > 2) reasons.push('Spread unavailable or above 2 pips');
   for (const [tf,ms] of Object.entries(TF_MS)) {
     const bars = market.frames?.[tf];
-    if (!bars || bars.length < 30 || !bars.every(validBar) || bars.some((b,i) => i && b.t <= bars[i-1].t)) { reasons.push(`${tf} history invalid or insufficient`); continue; }
+    if (!bars || bars.length < 30 || !bars.every(b=>validBar(b)&&b.t<=now) || bars.some((b,i) => i && b.t <= bars[i-1].t)) { reasons.push(`${tf} history invalid or insufficient`); continue; }
     if(tf==='M15') {
       const tail=bars.slice(-16);
       if(tail.some((b,i)=>i&&b.t-tail[i-1].t>2*ms&&forexOpen(tail[i-1].t+ms)&&forexOpen(b.t-ms)))reasons.push('M15 history has an unfilled trading-session gap');
@@ -45,7 +45,7 @@ export function dataHealth(market, now = Date.now()) {
     const latest = bars.at(-1);
     if (latest.t > now || now-latest.t > ms+60000) reasons.push(`${tf} history stale`);
   }
-  if (!meta.historyAt || now-meta.historyAt > 180000) reasons.push('History refresh overdue');
+  if (!Number.isFinite(meta.historyAt) || meta.historyAt > now+2000 || now-meta.historyAt > 180000) reasons.push('History refresh overdue');
   return {ok:reasons.length===0,reasons,spreadPips:Number.isFinite(spread)?+spread.toFixed(2):null,proxy:acceptedProxy};
 }
 export function marketHealth(market,now=Date.now()) {
@@ -58,6 +58,9 @@ export function marketHealth(market,now=Date.now()) {
 // Paper signal lifecycle only. Never implies a broker order was submitted or filled.
 export function createSignalTracker() {
   let pending = null, active = null, previousAt = 0, identity=null;
+  // A completed/invalidated model anchor cannot become a new entry on the next quote.
+  const retired=new Set();
+  const retire=key=>{if(key)retired.add(key);};
   return { reset() { pending = active = null; previousAt = 0; identity=null; }, update(candidate, market, now = Date.now()) {
     const nextIdentity=`${market.meta.provider||market.meta.source}:${market.meta.instrument}`;
     if(identity!==null&&identity!==nextIdentity){pending=active=null;previousAt=0;}identity=nextIdentity;
@@ -72,13 +75,15 @@ export function createSignalTracker() {
       const px = active.side === 'LONG' ? market.meta.bid : market.meta.ask;
       const stopped = active.side === 'LONG' ? px <= active.sl : px >= active.sl;
       const target = active.side === 'LONG' ? px >= active.t1 : px <= active.t1;
-      if (stopped || target) { const closed = {...active}; active = null; pending = null; return result(stopped?'INVALID':'TAKE_PROFIT',stopped?'PAPER STOP REACHED':'PAPER TARGET REACHED','Observed quote reached the paper signal level; not a broker fill.',closed); }
+      if (stopped || target) { retire(active.key); const closed = {...active}; active = null; pending = null; return result(stopped?'INVALID':'TAKE_PROFIT',stopped?'PAPER STOP REACHED':'PAPER TARGET REACHED','Observed quote reached the paper signal level; not a broker fill.',closed); }
       return result('IN_TRADE','PAPER SIGNAL — TRACKING','An entry touch was observed after arming. This is not confirmation of a broker trade.');
     }
     if (!candidate || !candidate.entry || candidate.side === 'FLAT') { pending = null; return base; }
     const geometry=['entry','sl','t1'].every(k=>Number.isFinite(candidate[k])) && (candidate.side==='LONG'?candidate.sl<candidate.entry&&candidate.entry<candidate.t1&&(candidate.t2==null||Number.isFinite(candidate.t2)&&candidate.t1<candidate.t2):candidate.side==='SHORT'&&candidate.sl>candidate.entry&&candidate.entry>candidate.t1&&(candidate.t2==null||Number.isFinite(candidate.t2)&&candidate.t1>candidate.t2));
     if(!geometry||!['ENTER','ARM','WAIT'].includes(candidate.status)){pending=null;return result('INVALID','NO VALID ENTRY','Invalid or expired setup; monitoring will not infer an entry.');}
     const key = `${candidate.setupId||candidate.model}-${candidate.side}`;
+    if(retired.has(key)){pending=null;return result('WAIT','WAIT FOR A NEW SETUP','This model anchor already expired or completed; waiting for a new market setup.',{side:'FLAT',entry:null,sl:null,t1:null,t2:null});}
+    if(pending&&pending.key===key&&now-pending.at>3600000){retire(key);pending=null;return result('WAIT','SETUP EXPIRED','One-hour observation expired; waiting for a new model anchor.',{side:'FLAT',entry:null,sl:null,t1:null,t2:null});}
     if (!pending || pending.key !== key || now-pending.at > 3600000 || gap) {
       pending = {...candidate,key,at:now};
       return result('ARM','SETUP WATCH — NOT AN ENTRY','Levels are armed for observation. Wait for an entry touch in an eligible window; no historical fill is inferred.');
@@ -86,7 +91,7 @@ export function createSignalTracker() {
     Object.assign(base,pending);
     const px = pending.side === 'LONG' ? market.meta.ask : market.meta.bid;
     const invalid = pending.side === 'LONG' ? px <= pending.sl || px >= pending.t1 : px >= pending.sl || px <= pending.t1;
-    if (invalid) { pending=null; return result('INVALID','SETUP EXPIRED','Stop or target reached before a valid observed entry touch.'); }
+    if (invalid) { retire(pending.key);pending=null; return result('INVALID','SETUP EXPIRED','Stop or target reached before a valid observed entry touch.'); }
     if (candidate.status === 'ENTER' && Math.abs(px-pending.entry) <= 3.2*0.0001) {
       active = {...pending,triggeredAt:now}; pending=null;
       return result('ENTER',`PAPER ${active.side} TRIGGER`,'Entry touch observed during the permitted window. Confirm independently with your broker.',active);

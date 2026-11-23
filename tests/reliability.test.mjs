@@ -155,3 +155,23 @@ test('observed paper trigger uses original 3.2-pip entry array and permits absen
  assert.equal(t.update(c,m,now).status,'ARM');
  const ex=t.update(c,m,now+1000);assert.equal(ex.status,'ENTER');assert.equal(ex.t2,null);
 });
+test('future refresh times or hidden future candles cannot make a book healthy',()=>{
+ for(const change of [m=>m.meta.historyAt=now+3000,m=>m.meta.historyAt=Infinity,m=>m.frames.H1[2].t=now+3600000]){
+  const m=fixture();change(m);assert.equal(marketHealth(m,now).ok,false);
+ }
+});
+test('completed paper anchor cannot trigger again from repeated fresh quotes, including after reset',()=>{
+ const m=fixture(),t=createSignalTracker(),c={side:'LONG',status:'ENTER',entry:1.15,sl:1.149,t1:1.151,t2:null,model:'original',setupId:'closed-anchor'};
+ assert.equal(t.update(c,m,now).status,'ARM');assert.equal(t.update(c,m,now+1000).status,'ENTER');
+ Object.assign(m.meta,{bid:1.1511,ask:1.1512});assert.equal(t.update(c,m,now+2000).status,'TAKE_PROFIT');
+ Object.assign(m.meta,{bid:1.14995,ask:1.15005});
+ assert.equal(t.update(c,m,now+3000).entry,null);t.reset();assert.equal(t.update(c,m,now+4000).entry,null);
+ assert.equal(t.update({...c,setupId:'new-anchor'},m,now+5000).status,'ARM');
+});
+test('one-hour-old frozen pending levels expire instead of silently rearming the same anchor',()=>{
+ const m=fixture(),t=createSignalTracker(),c={side:'LONG',status:'WAIT',entry:1.149,sl:1.148,t1:1.152,t2:null,model:'old',setupId:'old-anchor'};
+ assert.equal(t.update(c,m,now).status,'ARM');
+ const later=now+3600001,n=fixture(later);Object.assign(n.meta,{quoteAt:later,tradeAt:later,historyAt:later});
+ const ex=t.update(c,n,later);assert.equal(ex.entry,null);assert.equal(ex.label,'SETUP EXPIRED');
+ assert.equal(t.update(c,n,later+1).entry,null);
+});

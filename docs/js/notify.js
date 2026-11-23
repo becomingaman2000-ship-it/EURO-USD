@@ -1,4 +1,4 @@
-import { marketHealth } from './safety.js?v=original-setups-6';
+import { marketHealth } from './safety.js?v=freshness-7';
 /* Email alerts when a setup is fit to enter.
    Uses FormSubmit (no API key). First mail asks Gmail to confirm the inbox. */
 

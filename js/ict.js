@@ -1,5 +1,5 @@
 import { buildOriginalSetups } from './setups.js';
-import { TF_MS, nyParts, forexOpen, marketHealth, dataHealth } from './safety.js?v=original-setups-6';
+import { TF_MS, nyParts, forexOpen, marketHealth, dataHealth } from './safety.js?v=freshness-7';
 /* Advanced ICT / IPDA engine — structure, liquidity, PD arrays, models, bias. */
 
 const PIP = 0.0001;
@@ -222,7 +222,7 @@ function liquidityPools(bars, sw) {
   cluster(highs.slice(-10), "BSL");
   cluster(lows.slice(-10), "SSL");
 
-  const lastN = bars.slice(-80);
+  const lastN = bars;
   for (const p of pools) {
     for (const b of lastN) {
       if (b.t <= p.t) continue;
