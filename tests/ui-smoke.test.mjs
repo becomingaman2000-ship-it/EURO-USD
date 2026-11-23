@@ -17,7 +17,13 @@ test('UI boots in blocked/offline mode with all DOM IDs and canvas render paths 
     assert.equal(elements.get('#exState').textContent,'SIGNALS BLOCKED');assert.equal(elements.get('#exEntry').textContent,'—');
     assert.equal(elements.get('#actionWord').textContent,'FLAT');
     assert.match(elements.get('#predGrid').innerHTML,/UNVERIFIED/);
+    assert.equal(elements.get('#confirmCalendarInline').hidden,false);
+    handlers.get('confirmCalendarInline:click')();
+    assert.match(elements.get('#calendarStatus').textContent,/Monitoring window active/);
+    assert.equal(elements.get('#confirmCalendarInline').hidden,true);
+    assert.doesNotMatch(elements.get('#exNote').textContent,/enable the 30-minute/);
     handlers.get('confirmCalendar:click')();assert.equal(elements.get('#exEntry').textContent,'—');
+    assert.match(elements.get('#confirmCalendar').textContent,/renew/);
     handlers.get('resetSignals:click')();assert.equal(elements.get('#exState').textContent,'SIGNALS BLOCKED');
     assert.equal(elements.get('#mailToggle').checked,true);
     elements.get('#mailToggle').checked=false;handlers.get('mailToggle:change')();

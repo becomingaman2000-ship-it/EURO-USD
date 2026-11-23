@@ -475,7 +475,39 @@ async function attachLive() {
   });
 }
 
+function renderMonitoringStatus() {
+  const remaining=Math.max(0,newsCheckedUntil-Date.now());
+  const enabled=remaining>0;
+  $('#calendarStatus').textContent=enabled
+    ? `Calendar confirmed. Monitoring window active for ${Math.ceil(remaining/60000)} more minute(s). Other safety checks and a valid setup are still required.`
+    : 'Monitoring not enabled or expired. Check the calendar, then tap the gold button.';
+  $('#confirmCalendar').textContent=enabled?'Calendar confirmed — renew 30-minute window':'I checked the calendar — enable 30-minute monitoring';
+  $('#confirmCalendarInline').hidden=enabled;
+}
+
+function bindMonitoringControls() {
+  try {
+    const saved=Number(sessionStorage.getItem('ipda-calendar-until'));
+    if(saved>Date.now()&&saved<=Date.now()+30*60000)newsCheckedUntil=saved;
+  }catch{}
+  const enable=()=>{
+    newsCheckedUntil=Date.now()+30*60000;
+    try{sessionStorage.setItem('ipda-calendar-until',String(newsCheckedUntil));}catch{}
+    renderMonitoringStatus(); // Acknowledge the tap before the heavier chart rescan.
+    if(state.market)refresh(state.market,{preserve:true,soft:true});
+  };
+  $('#confirmCalendar').addEventListener('click',enable);
+  $('#confirmCalendarInline').addEventListener('click',enable);
+  $('#resetSignals').addEventListener('click',()=>{
+    signalTracker.reset();
+    if(state.market)refresh(state.market,{preserve:true,soft:true});
+    $('#calendarStatus').textContent='Paper signal tracking reset. '+(newsCheckedUntil>Date.now()?'Your calendar confirmation remains active.':'Check the calendar and enable monitoring.');
+  });
+  renderMonitoringStatus();
+}
+
 function boot() {
+  bindMonitoringControls(); // Bind before chart construction, analysis, or network startup.
   try {const saved=localStorage.getItem("ipda-feed-mode");if(["AUTO","KRAKEN","BINANCE"].includes(saved))feedMode=saved;}catch{}
   $("#feedMode").value=feedMode;
   $("#feedMode").addEventListener("change",()=>{
@@ -509,7 +541,7 @@ function boot() {
 
   window.addEventListener("resize", () => state.chart.resize());
   renderClock();
-  setInterval(renderClock, 1000);
+  setInterval(()=>{renderClock();renderMonitoringStatus();}, 1000);
   attachLive();
 
   window.addEventListener("keydown", (e) => {
@@ -533,8 +565,6 @@ function boot() {
   },1000);
   // Reload complete books on failover; never attach a different venue's quotes to old candles.
   setInterval(()=>{if(!attaching&&state.live)attachLive();},60000);
-  $('#confirmCalendar').addEventListener('click',()=>{newsCheckedUntil=Date.now()+30*60000;if(state.market)refresh(state.market,{preserve:true,soft:true});});
-  $('#resetSignals').addEventListener('click',()=>{signalTracker.reset();if(state.market)refresh(state.market,{preserve:true,soft:true});});
   const toggle=$('#mailToggle'),testButton=$('#mailTest');
   toggle.checked=mailEnabled();
   const showMailSetting=()=>setMailStatus(toggle.checked?'idle':'off',toggle.checked?'Alerts ON — waiting for a valid observed entry. Keep this page open; activation may be required.':'Email alerts are OFF on this device');

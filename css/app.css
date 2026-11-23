@@ -686,3 +686,19 @@ main { padding: 22px 28px 80px; display: flex; flex-direction: column; gap: 36px
   .pdcols, .mtf, .sess { grid-template-columns: 1fr; }
   .colophon { flex-direction: column; }
 }
+
+/* Explicit, touch-sized controls: never present safety actions as unstyled prose. */
+.boot.off { pointer-events: none; }
+.safety-panel { padding: 18px; border: 1px solid var(--gold); margin: 16px 0; }
+.safety-panel p { margin: 12px 0; line-height: 1.6; }
+.safety-panel label { display: block; margin: 14px 0 6px; }
+.safety-panel select { display: block; width: 100%; min-height: 48px; font: inherit; font-size: 16px; touch-action: manipulation; }
+.safety-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.safety-button { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 14px 18px; border: 1px solid var(--gold); border-radius: 6px; background: #191b20; color: var(--ink); font-size: 16px; line-height: 1.4; text-align: center; touch-action: manipulation; cursor: pointer; }
+.safety-button.primary { background: var(--gold); color: #111; font-weight: 600; }
+.safety-button:active { transform: translateY(1px); filter: brightness(1.15); }
+.safety-button:focus-visible, .safety-panel select:focus-visible { outline: 3px solid var(--gold-2); outline-offset: 4px; }
+.safety-button[hidden] { display: none; }
+#calendarStatus { color: var(--gold-2); }
+#confirmCalendarInline { margin: 12px 0; width: 100%; }
+@media (max-width: 680px) { .safety-actions { flex-direction: column; } .safety-actions .safety-button { width: 100%; } }

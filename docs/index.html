@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/app.css?v=mobile-controls-3" />
 </head>
 <body>
   <div class="grain"></div>
@@ -65,7 +65,7 @@
   </header>
 
   <main>
-    <section class="panel" style="padding:18px;border:1px solid #a8894d;margin:16px 0" aria-label="Live market safety">
+    <section class="panel safety-panel" aria-label="Live market safety">
       <h2>Live EUR/USD · signal safety</h2>
       <p>Kraken EUR/USD preferred; optional Binance EUR/USDT is a stablecoin proxy, not broker EUR/USD. Complete venue histories are kept separate. Signals are blocked on demo data, stale history, stale trades, wide spreads, market closure, or extreme volatility. No broker orders are placed.</p>
       <p>No automatic economic calendar is connected. Check upcoming EUR/USD releases before enabling monitoring. Confirmation expires after 30 minutes; it does not guarantee news-safe conditions.</p>
@@ -76,8 +76,11 @@
         <option value="BINANCE">Binance · EUR/USDT proxy (not EUR/USD)</option>
       </select>
       <p>Direction is available on healthy data without enabling entries. BUY/SELL BIAS describes confirmed structure plus momentum, not a guaranteed forecast. WAIT means evidence is weak or conflicting. Proxy prices must be checked against MT5.</p>
-      <button id="confirmCalendar" type="button">I checked the calendar · monitor for 30 minutes</button>
-      <button id="resetSignals" type="button">Reset paper signal monitoring</button>
+      <div class="safety-actions">
+        <button id="confirmCalendar" class="safety-button primary" type="button">I checked the calendar — enable 30-minute monitoring</button>
+        <button id="resetSignals" class="safety-button" type="button">Reset paper signal monitoring</button>
+      </div>
+      <p id="calendarStatus" role="status" aria-live="polite">Monitoring not enabled. Check the calendar, then tap the gold button.</p>
     </section>
     <section class="execute" id="execute">
       <div class="ex-head">
@@ -126,6 +129,7 @@
       </div>
       <div class="ex-track"><i id="exBar"></i></div>
       <p id="exNote">Connecting live EUR/USD…</p>
+      <button id="confirmCalendarInline" class="safety-button primary" type="button">I checked the calendar — enable monitoring</button>
       <div class="mailbar">
         <label class="switch">
           <input type="checkbox" id="mailToggle" checked />
@@ -314,6 +318,6 @@
     </p>
   </footer>
 
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=mobile-controls-3"></script>
 </body>
 </html>
